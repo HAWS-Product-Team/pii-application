@@ -10,4 +10,10 @@ A web application that computes Personal Inflation Index
    - prediction of future PII
    - what parts of their spending is experiencing greatly different inflation than CPI
   
-# application's process for computing PII
+# steps to compute PII
+these are steps that the application needs to do in order to compute PII. (Lance: not all these are correct but im putting them here to revise later.)
+	1.	Exploratory analysis: catagorize data using ML
+	2.	Price tracking: For repeat purchases, calculate price changes month-over-month
+	3.	(necessary?)ML feature engineering: Create features like average price per category, seasonality, trend
+	4.	(necessary to train a model for each user im order to predict future?) Model building: Train models to predict inflation in your spending patterns
+	5.	Validation: Compare your personal inflation to official CPI—where do they diverge?
