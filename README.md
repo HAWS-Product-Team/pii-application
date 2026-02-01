@@ -1,5 +1,5 @@
 # pii-application
-A web application that computes Personal Inflation Index
+A web application that computes Personal Inflation Index 
 
 # user workflow
 1. user discovers app
