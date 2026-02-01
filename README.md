@@ -1,2 +1,3 @@
 # pii-application
-Application for Personal Inflation Index
+A web application that computes Personal Inflation Index
+
