@@ -10,3 +10,4 @@ A web application that computes Personal Inflation Index
    - prediction of future PII
    - what parts of their spending is experiencing greatly different inflation than CPI
   
+# application's process for computing PII
