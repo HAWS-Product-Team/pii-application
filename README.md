@@ -18,6 +18,8 @@ these are steps that the application needs to do in order to compute PII. (Lance
 	4.	(necessary to train a model for each user im order to predict future?) Model building: Train models to predict inflation in your spending patterns
 	5.	Validation: Compare your personal inflation to official CPI—where do they diverge?
 
+-----
+
 # Personal Inflation Tracker - Architecture & Roadmap
 ## High-Level Architecture
 
@@ -25,7 +27,7 @@ these are steps that the application needs to do in order to compute PII. (Lance
 
 Users can provide their purchase history through:
 
-#### Option A — Download Amazon Order History ✅ (Recommended)
+#### Download Amazon Order History
 
 Amazon allows users to download:
 
@@ -35,7 +37,6 @@ Amazon allows users to download:
 - Order date
 - Item price
 - Quantity
-- Shipping information
 
 -----
 
@@ -154,7 +155,7 @@ Predict a user’s future costs using:
 
 - ✅ **Do:** Let users voluntarily upload their Amazon order CSV
 - ✅ **Do:** Process data locally or with strong anonymization
-- ❌ **Don’t:** Scrape Amazon or any retailer
+-  ? **caution:** Scrappimg Amazon or any retailer may resukt in them blocking our site
 - ❌ **Don’t:** Store raw data longer than necessary
 - ✅ **Do:** Be transparent about what data you collect and retain
 
@@ -209,7 +210,6 @@ Choose what to build first:
 **Frontend:**
 
 - React + Plotly/Chart.js (interactive visualizations)
-- or lightweight dashboard (Streamlit for quick MVP)
 
 -----
 
@@ -220,14 +220,3 @@ Choose what to build first:
 - **Minimum data requirement:** ~6 months of purchase history for meaningful results
 - **Category coverage:** Amazon’s native categories should be leveraged where available
 - **Performance:** Consider lazy-loading and caching for large order histories (10,000+ items)
-
------
-
-## Questions & Feedback
-
-Open issues/discussions for:
-
-- Edge cases in unit normalization
-- Category taxonomy and coverage
-- Forecast accuracy and benchmarking
-- Privacy & data retention policy
