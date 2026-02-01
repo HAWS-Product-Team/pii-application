@@ -17,3 +17,217 @@ these are steps that the application needs to do in order to compute PII. (Lance
 	3.	(necessary?)ML feature engineering: Create features like average price per category, seasonality, trend
 	4.	(necessary to train a model for each user im order to predict future?) Model building: Train models to predict inflation in your spending patterns
 	5.	Validation: Compare your personal inflation to official CPI—where do they diverge?
+
+# Personal Inflation Tracker - Architecture & Roadmap
+## High-Level Architecture
+
+### 1. Data Ingestion
+
+Users can provide their purchase history through:
+
+#### Option A — Download Amazon Order History ✅ (Recommended)
+
+Amazon allows users to download:
+
+- Order History Reports (CSV format)
+- Item name
+- Category
+- Order date
+- Item price
+- Quantity
+- Shipping information
+
+-----
+
+### 2. Data Cleaning & Normalization
+
+Process each order by:
+
+- Parsing structured fields (date, price, quantity)
+- Normalizing product names (remove extra whitespace, standardize formatting)
+- Extracting units (e.g., “120-count paper towels” → per-unit price)
+- Handling edge cases (variety packs, weight-based items)
+- Inferring category using ML text classification (DistilBERT, BERT, or simpler models)
+
+-----
+
+### 3. Category Classification Model (ML)
+
+Train a lightweight text classifier to categorize items automatically.
+
+**Inputs:** Item name + description  
+**Outputs:** Category (Groceries, Household, Electronics, Clothing, etc.)
+
+**Model Options:**
+
+|Approach                        |Pros                                       |Cons                          |
+|--------------------------------|-------------------------------------------|------------------------------|
+|**DistilBERT fine-tuned**       |High accuracy, leverages pre-training      |Requires labeled training data|
+|**Zero-shot classification**    |No training needed, works out-of-box       |Slower inference              |
+|**TF-IDF + Logistic Regression**|Fast, surprisingly effective, interpretable|Lower accuracy on edge cases  |
+
+**Recommendation for MVP:** Start with zero-shot or TF-IDF; upgrade to fine-tuned DistilBERT if accuracy becomes a bottleneck.
+
+-----
+
+### 4. Price Time Series Construction
+
+Group purchases by:
+
+- Category
+- Item SKU (inferred if possible)
+- Unit-normalized prices
+
+Compute:
+
+- Price per unit over time
+- Rolling averages (e.g., 30-day, 90-day)
+- Year-over-year (YoY) and month-over-month (MoM) price changes
+
+-----
+
+### 5. Personal Inflation Model
+
+#### Step 1: Compute Category-Level Inflation
+
+For each category `c`:
+
+```
+Inflation_c(t) = (AvgPrice_c(t) - AvgPrice_c(t-12)) / AvgPrice_c(t-12)
+```
+
+Where:
+
+- `AvgPrice_c(t)` = average price in category `c` at time `t`
+- `AvgPrice_c(t-12)` = average price 12 months prior
+
+#### Step 2: Weight by Personal Spending
+
+Let `w_c` = user’s spending share on category `c`:
+
+```
+w_c = TotalSpend_c / TotalSpend
+```
+
+#### Step 3: Compute Personal Inflation Index
+
+```
+PersonalInflation(t) = Σ_c (w_c × Inflation_c(t))
+```
+
+This produces a CPI-like index weighted by the user’s actual consumption basket.
+
+-----
+
+## Optional ML Enhancements
+
+### 1. Anomaly Detection
+
+Identify and exclude:
+
+- Subscription renewals (recurring charges)
+- Gifts (personal consumption distortions)
+- One-time big-ticket items (which skew inflation metrics)
+
+### 2. Product Similarity Clustering
+
+Group similar products so that:
+
+- “Kirkland paper towels – 12-pack”
+- “Bounty paper towels – 8-pack”
+
+…are treated as the same essential product type for price tracking.
+
+Use: Fuzzy matching, embeddings (Sentence-BERT), or clustering (K-means on TF-IDF vectors).
+
+### 3. Forecasting
+
+Predict a user’s future costs using:
+
+- **Prophet** (good for seasonality)
+- **ARIMA** (classical time-series)
+- **LSTM** (deep learning approach)
+
+-----
+
+## Privacy & Legal Notes
+
+- ✅ **Do:** Let users voluntarily upload their Amazon order CSV
+- ✅ **Do:** Process data locally or with strong anonymization
+- ❌ **Don’t:** Scrape Amazon or any retailer
+- ❌ **Don’t:** Store raw data longer than necessary
+- ✅ **Do:** Be transparent about what data you collect and retain
+
+-----
+
+## Minimum Viable Product (MVP) Flow
+
+1. User uploads Amazon order history CSV
+1. Parse and clean data (dates, prices, quantities)
+1. ML model categorizes each item
+1. Compute category weights (personal spending shares)
+1. Calculate personal inflation metrics
+1. Display:
+- Last 12 months of inflation
+- Category-level breakdown
+- Top drivers of personal inflation
+- Optional comparison to national CPI
+
+-----
+
+## Next Steps
+
+Choose what to build first:
+
+- [ ] Sample Python code for ingestion & inflation computation
+- [ ] ML architecture diagram
+- [ ] Database schema
+- [ ] Frontend mockups
+- [ ] Tech stack recommendation (serverless, containerized, etc.)
+- [ ] Sample data & test cases
+
+-----
+
+## Tech Stack Considerations
+
+**Backend:**
+
+- Python (pandas, scikit-learn, transformers)
+- Serverless (AWS Lambda, Google Cloud Functions) or containerized (Docker)
+
+**ML/NLP:**
+
+- Hugging Face Transformers (for classification)
+- scikit-learn (for clustering, TF-IDF)
+- Prophet or statsmodels (for forecasting)
+
+**Database:**
+
+- PostgreSQL (structured data, time-series)
+- or Firebase/Firestore (serverless, simpler setup)
+
+**Frontend:**
+
+- React + Plotly/Chart.js (interactive visualizations)
+- or lightweight dashboard (Streamlit for quick MVP)
+
+-----
+
+## Known Limitations & Future Work
+
+- **Unit extraction** is non-trivial for real-world data (variety packs, weight-based items)
+- **Seasonality** needs careful handling (winter coats shouldn’t spike clothing inflation)
+- **Minimum data requirement:** ~6 months of purchase history for meaningful results
+- **Category coverage:** Amazon’s native categories should be leveraged where available
+- **Performance:** Consider lazy-loading and caching for large order histories (10,000+ items)
+
+-----
+
+## Questions & Feedback
+
+Open issues/discussions for:
+
+- Edge cases in unit normalization
+- Category taxonomy and coverage
+- Forecast accuracy and benchmarking
+- Privacy & data retention policy
