@@ -1,5 +1,5 @@
 # pii-application
-A web application that computes Personal Inflation Index 
+A web application that computes a user's Personal Inflation Index 
 
 # user workflow
 1. user discovers app
@@ -44,11 +44,11 @@ Amazon allows users to download:
 
 Process each order by:
 
-- Parsing structured fields (date, price, quantity)
+- Parsing structured fields (date, price, quantity, description)
 - Normalizing product names (remove extra whitespace, standardize formatting)
 - Extracting units (e.g., “120-count paper towels” → per-unit price)
 - Handling edge cases (variety packs, weight-based items)
-- Inferring category using ML text classification (DistilBERT, BERT, or simpler models)
+- Inferring category (CPI category) using ML text classification (DistilBERT, BERT, or simpler models)
 
 -----
 
@@ -169,10 +169,10 @@ Predict a user’s future costs using:
 1. Compute category weights (personal spending shares)
 1. Calculate personal inflation metrics
 1. Display:
-- Last 12 months of inflation
+- Last 24+ months of inflation
 - Category-level breakdown
 - Top drivers of personal inflation
-- Optional comparison to national CPI
+- Comparison to national CPI
 
 -----
 
@@ -194,18 +194,15 @@ Choose what to build first:
 **Backend:**
 
 - Python (pandas, scikit-learn, transformers)
-- Serverless (AWS Lambda, Google Cloud Functions) or containerized (Docker)
+- Serverless (AWS Lambda--not good as it has limits, AWS Batch--promising) or 
+containerized (Docker)--most expensive
+
 
 **ML/NLP:**
 
 - Hugging Face Transformers (for classification)
 - scikit-learn (for clustering, TF-IDF)
 - Prophet or statsmodels (for forecasting)
-
-**Database:**
-
-- PostgreSQL (structured data, time-series)
-- or Firebase/Firestore (serverless, simpler setup)
 
 **Frontend:**
 
