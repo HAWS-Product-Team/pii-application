@@ -11,10 +11,21 @@ here are some models to try:
 - https://huggingface.co/DAMO-NLP-SG/zero-shot-classify-SSTuning-XLM-R
 -- .03B
 
-# background
+# Background
 
+## Model Families
+Below are some model families.
+|Approach                        |Pros                                       |Cons                          |
+|--------------------------------|-------------------------------------------|------------------------------|
+|**DistilBERT fine-tuned**       |High accuracy, leverages pre-training      |Requires labeled training data|
+|**Zero-shot classification**    |No training needed, works out-of-box       |Slower inference              |
+|**TF-IDF + Logistic Regression**|Fast, surprisingly effective, interpretable|Lower accuracy on edge cases  |
+**Recommendation for MVP:** Start with zero-shot or TF-IDF; upgrade to fine-tuned DistilBERT if accuracy becomes a bottleneck.
+
+## Inference costs
 Parameters are all the numerical values inside a model that it “learned” during training. Think of them as the model’s “brain weights” — they control how the model makes decisions.
 Simple analogy: If a model is like a very complex decision tree, each parameter is like a small rule or weight that says “this word matters this much” or “this pattern is important.”
+
 Why you care:
 More parameters = potentially better performance:
 	∙	125M parameters can capture more nuanced patterns
@@ -33,4 +44,3 @@ For spending categorization :
 |RoBERTa-large|355M  |Slower   |Best   |You have compute & accuracy matters|
 
 My recommendation: Start with 125M or smaller. Categorizing “paper towels” vs “shirt” doesn’t require 768M parameters. You get 90% of the performance at 50% of the cost.
-
