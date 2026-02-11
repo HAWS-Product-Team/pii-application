@@ -2,24 +2,20 @@
 We need a model to add categories to spend data. Categories are the 8 Consumer Price Index categories. 
 The spend data is structured and generally contains: date, description, quantity, price. 
 
-here are some models to try:
-- https://huggingface.co/facebook/bart-large-mnli
--- 3 mil downloads last month
--- .4B parameters 
-- https://huggingface.co/cross-encoder/nli-distilroberta-base
--- .04B parameters 
-- https://huggingface.co/DAMO-NLP-SG/zero-shot-classify-SSTuning-XLM-R
--- .03B
+Models to try:
+| Model                                                                                      | Downloads (last month) | Parameters |
+|:--------------------------------------------------------------------------------------------|:-----------------------|:-----------|
+| [bart-large-mnli](https://huggingface.co/facebook/bart-large-mnli)                          | 3 mil                  | 0.4B       |
+| [nli-distilroberta-base](https://huggingface.co/cross-encoder/nli-distilroberta-base)       | -                      | 0.04B      |
+| [zero-shot-classify-SSTuning-XLM-R](https://huggingface.co/DAMO-NLP-SG/zero-shot-classify-SSTuning-XLM-R) | -                      | 0.03B      |
 
-# Background
-
-## Model Families
+## Classification Approaches
 Below are some model families.
-|Approach                        |Pros                                       |Cons                          |
-|--------------------------------|-------------------------------------------|------------------------------|
-|**DistilBERT fine-tuned**       |High accuracy, leverages pre-training      |Requires labeled training data|
-|**Zero-shot classification**    |No training needed, works out-of-box       |Slower inference              |
-|**TF-IDF + Logistic Regression**|Fast, surprisingly effective, interpretable|Lower accuracy on edge cases  |
+| Approach                                                                   | Pros                                            | Cons                           |
+|:---------------------------------------------------------------------------|:------------------------------------------------|:-------------------------------|
+| **Tune a Pre-trained transformer model** (ex. DistilBERT)                  | High accuracy, leverages pre-training           | Requires labeled training data |
+| **Use a Zero-shot classification**                                         | No tuning or training needed, works out-of-box  | Slower inference               |
+| **Classical machine learning pipeline** (ex. TF-IDF + Logistic Regression) | Fast, surprisingly effective, interpretable     | Lower accuracy on edge cases   |
 **Recommendation for MVP:** Start with zero-shot or TF-IDF; upgrade to fine-tuned DistilBERT if accuracy becomes a bottleneck.
 
 ## Inference costs
@@ -27,20 +23,18 @@ Parameters are all the numerical values inside a model that it “learned” dur
 Simple analogy: If a model is like a very complex decision tree, each parameter is like a small rule or weight that says “this word matters this much” or “this pattern is important.”
 
 Why you care:
-More parameters = potentially better performance:
-	∙	125M parameters can capture more nuanced patterns
-	∙	768M parameters can understand more complex relationships
-	∙	But… diminishing returns (100B parameters might only be slightly better)
-But more parameters also means:
-	∙	Slower — takes longer to run (inference time)
-	∙	Larger file size — needs more storage/memory to load
-	∙	More compute required — harder to run on laptops, needs better GPUs
-	∙	Higher cost — if using cloud APIs, you pay more
+| Impact          | Details                                                                                                          |
+|:----------------|:-----------------------------------------------------------------------------------------------------------------|
+| **Performance** | 125M can capture nuanced patterns, 768M for complex relationships (but with diminishing returns at 100B+).       |
+| **Speed**       | Slower; takes longer to run (inference time).                                                                    |
+| **Size**        | Larger file size; needs more storage/memory to load.                                                             |
+| **Compute**     | More compute required; harder for laptops, needs better GPUs.                                                   |
+| **Cost**        | Higher cost; especially for cloud APIs.                                                                          |
 For spending categorization :
-|Model        |Params|Speed    |Quality|Use When                           |
-|-------------|------|---------|-------|-----------------------------------|
-|DistilBERT   |66M   |Very Fast|Good   |MVP, limited compute               |
-|RoBERTa-base |125M  |Fast     |Better |Balanced option                    |
-|RoBERTa-large|355M  |Slower   |Best   |You have compute & accuracy matters|
+| Model         | Params | Speed     | Quality | Use When                            |
+|:--------------|:-------|:----------|:--------|:------------------------------------|
+| DistilBERT    | 66M    | Very Fast | Good    | MVP, limited compute                |
+| RoBERTa-base  | 125M   | Fast      | Better  | Balanced option                     |
+| RoBERTa-large | 355M   | Slower    | Best    | You have compute & accuracy matters |
 
 My recommendation: Start with 125M or smaller. Categorizing “paper towels” vs “shirt” doesn’t require 768M parameters. You get 90% of the performance at 50% of the cost.
