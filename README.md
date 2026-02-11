@@ -21,7 +21,7 @@ these are steps that the application needs to do in order to compute PII. (Lance
 -----
 
 # Personal Inflation Tracker - Architecture & Roadmap
-## High-Level Architecture
+## Data Flow
 
 ### 1. Data Ingestion
 
@@ -58,7 +58,7 @@ Use a model to categorize items automatically.
 
 **Inputs:** Item name + description  
 **Outputs:** Category (Groceries, Household, Electronics, Clothing, etc.)
-
+Read more about the model [here](model%20for%20classification.md).
 
 -----
 
