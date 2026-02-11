@@ -54,20 +54,11 @@ Process each order by:
 
 ### 3. Category Classification Model (ML)
 
-Train a lightweight text classifier to categorize items automatically.
+Use a model to categorize items automatically.
 
 **Inputs:** Item name + description  
 **Outputs:** Category (Groceries, Household, Electronics, Clothing, etc.)
 
-**Model Options:**
-
-|Approach                        |Pros                                       |Cons                          |
-|--------------------------------|-------------------------------------------|------------------------------|
-|**DistilBERT fine-tuned**       |High accuracy, leverages pre-training      |Requires labeled training data|
-|**Zero-shot classification**    |No training needed, works out-of-box       |Slower inference              |
-|**TF-IDF + Logistic Regression**|Fast, surprisingly effective, interpretable|Lower accuracy on edge cases  |
-
-**Recommendation for MVP:** Start with zero-shot or TF-IDF; upgrade to fine-tuned DistilBERT if accuracy becomes a bottleneck.
 
 -----
 
