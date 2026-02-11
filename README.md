@@ -20,6 +20,7 @@ these are steps that the application needs to do in order to compute PII. (Lance
 
 -----
 
+
 # Personal Inflation Tracker - Architecture & Roadmap
 ## Data Flow
 
