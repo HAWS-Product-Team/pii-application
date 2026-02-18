@@ -1,0 +1,17 @@
+[project]
+name = "anonymizer"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Lance Kind", email = "lancerkind@yahoo.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+anonymizer = "anonymizer.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.10.2,<0.11.0"]
+build-backend = "uv_build"

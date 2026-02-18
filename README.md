@@ -1,6 +1,12 @@
 # pii-application 
 A web application that computes a user's Personal Inflation Index 
 
+# source code organization
+- backend: python code for data ingestion and inflation computation
+- frontend: react code for user interface and data visualization
+
+No code between the two folders is refeferenced directly. Communication between the two folders is done via Web API calls.
+
 # user workflow
 1. user discovers app
 2. user learns about PII and why its more valuable than CPI
@@ -174,9 +180,8 @@ Choose what to build first:
 
 - [ ] Sample Python code for ingestion & inflation computation
 - [ ] ML architecture diagram
-- [ ] Database schema
-- [ ] Frontend mockups
-- [ ] Tech stack recommendation (serverless, containerized, etc.)
+- [X] Frontend mockups
+- [X] Tech stack recommendation (serverless, containerized, etc.)
 - [ ] Sample data & test cases
 
 -----
@@ -188,7 +193,6 @@ Choose what to build first:
 - Python (pandas, scikit-learn, transformers)
 - Serverless (AWS Lambda--not good as it has limits, AWS Batch--promising) or 
 containerized (Docker)--most expensive
-
 
 **ML/NLP:**
 
