@@ -4,10 +4,10 @@ The spend data is structured and generally contains: date, description, quantity
 
 Models to try:
 | Model                                                                                      | Downloads (last month) | Parameters |
-|:--------------------------------------------------------------------------------------------|:-----------------------|:-----------|
-| [bart-large-mnli](https://huggingface.co/facebook/bart-large-mnli)                          | 3 mil                  | 0.4B       |
-| [nli-distilroberta-base](https://huggingface.co/cross-encoder/nli-distilroberta-base)       | -                      | 0.04B      |
-| [zero-shot-classify-SSTuning-XLM-R](https://huggingface.co/DAMO-NLP-SG/zero-shot-classify-SSTuning-XLM-R) | -                      | 0.03B      |
+|--------------------------------------------------------------------------------------------|------------------------|------------|
+| [bart-large-mnli](https://huggingface.co/facebook/bart-large-mnli)                                                                     | 3 mil                  | 0.4B       |
+| [nli-distilroberta-base](https://huggingface.co/cross-encoder/nli-distilroberta-base)                                                              | -                      | 0.04B      |
+| [zero-shot-classify-SSTuning-XLM-R](https://huggingface.co/DAMO-NLP-SG/zero-shot-classify-SSTuning-XLM-R)                                                   | -                      | 0.03B      |
 
 ## Classification Approaches
 Below are some model families.
@@ -30,9 +30,10 @@ Why you care:
 | **Size**        | Larger file size; needs more storage/memory to load.                                                             |
 | **Compute**     | More compute required; harder for laptops, needs better GPUs.                                                   |
 | **Cost**        | Higher cost; especially for cloud APIs.                                                                          |
+
 For spending categorization :
 | Model         | Params | Speed     | Quality | Use When                            |
-|:--------------|:-------|:----------|:--------|:------------------------------------|
+|---------------|--------|-----------|---------|-------------------------------------|
 | DistilBERT    | 66M    | Very Fast | Good    | MVP, limited compute                |
 | RoBERTa-base  | 125M   | Fast      | Better  | Balanced option                     |
 | RoBERTa-large | 355M   | Slower    | Best    | You have compute & accuracy matters |
