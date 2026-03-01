@@ -1,3 +1,14 @@
 .python-version
 *.egg-info/
 
+# JetBrains / PyCharm
+*.iml
+.idea/misc.xml
+.idea/**
+
+# If you want to share some IDE settings, you can un-ignore selectively:
+# !.idea/codeStyles/
+# !.idea/inspectionProfiles/
+# !.idea/runConfigurations/
+# !.idea/vcs.xml
+
