@@ -18,3 +18,9 @@ bashuv add transformers accelerate datasets
 ```uv add torch --index-url https://download.pytorch.org/whl/cu121```
 Note: Adjust cu121 to match your CUDA version.
 
+# How to run the CLI
+The first step gets the dependencies installed. The second step runs the CLI.
+
+From the UV project root (inflation-classifier directory):
+1. uv sync
+2. uv run inflation_classifier.py
