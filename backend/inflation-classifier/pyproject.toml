@@ -1,7 +1,7 @@
 [project]
 name = "inflation-classifier"
 version = "0.1.0"
-description = "Add your description here"
+description = "classify spending data to 8 catagories used by consumer price index"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -10,4 +10,23 @@ dependencies = [
     "pandas>=3.0.1",
     "torch>=2.10.0",
     "transformers>=5.2.0",
+]
+
+[project.scripts]
+inflation-classifier = "inflation_classifier.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.4",
 ]
