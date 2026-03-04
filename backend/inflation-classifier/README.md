@@ -12,6 +12,18 @@ accelerate — HF library that handles device management (CPU/GPU/MPS); transfor
 If you're on a Mac with Apple Silicon, PyTorch will automatically use the MPS (Metal) backend which gives you a meaningful speedup over CPU — no extra config needed.
 ```uv add transformers torch accelerate datasets```
 
+There is a configuration parameter in the code for Metal (Apple Silicon), versus CPU/GPU.  My experiance has been that explicitly
+setting the device to "mps" didn't make a difference, and per the above paragraph, it will automatically use MPS if available.
+```python
+    # Load the zero-shot pipeline
+    # device=0 uses GPU if available, remove or set device="cpu" to force CPU
+    classifier = pipeline(
+        "zero-shot-classification",
+        model="facebook/bart-large-mnli",
+        device=0  # or "mps" on Apple Silicon, or "cpu"
+    )
+```
+
 ## Regarding GPU support with torch,
 If you're on Linux with an NVIDIA GPU, replace torch with:
 bashuv add transformers accelerate datasets
@@ -23,4 +35,4 @@ The first step gets the dependencies installed. The second step runs the CLI.
 
 From the UV project root (inflation-classifier directory):
 1. uv sync
-2. uv run inflation_classifier.py
+2. uv run inflation_classifier [--help, --list-wrong] path-to-csv-file
