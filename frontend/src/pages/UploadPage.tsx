@@ -1,7 +1,7 @@
 import importLogo from '../assets/inbox.svg';
 import folderLogo from '../assets/folder.svg';
 
-export default function CalculatePage() {
+export default function UploadPage() {
 
     const handleImport = () => {
 

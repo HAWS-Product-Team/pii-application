@@ -5,7 +5,7 @@ export default function Navbar() {
     const { pathname } = useLocation();
 
     const links = [
-        { to: '/calculate', label: 'Calculate'},
+        { to: '/upload', label: 'Upload'},
         { to: '/dashboard', label: 'Dashboard' },
         { to: '/insights', label: 'Insights' },
     ];

@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Route, Routes} from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import DashboardPage from './pages/DashboardPage'
-import CalculatePage from './pages/CalculatePage'
+import UploadPage from './pages/UploadPage'
 import './App.css'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -16,7 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/calculate" element={<CalculatePage />} />
+          <Route path="/upload" element={<UploadPage />} />
         </Routes>
         </div>
         <Footer/>
