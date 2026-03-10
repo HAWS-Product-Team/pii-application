@@ -1,0 +1,2 @@
+[console_scripts]
+inflation-classifier = inflation_classifier.cli:main
