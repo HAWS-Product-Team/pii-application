@@ -12,7 +12,7 @@ export default function Homepage() {
                 inflation index based on what you actually buy, and see how prices 
                 really affect you. <Link to={"/"} className='text-[#33B4A8]'> Learn more </Link>
             </p>
-            <Link to={"/calculate"} className='bg-[#33B4A8] rounded-full text-white px-10 py-1'>
+            <Link to={"/upload"} className='bg-[#33B4A8] rounded-full text-white px-10 py-1'>
                 Calculate
             </Link>
         </div>

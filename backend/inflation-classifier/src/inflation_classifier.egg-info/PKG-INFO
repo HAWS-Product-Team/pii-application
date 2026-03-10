@@ -1,0 +1,50 @@
+Metadata-Version: 2.4
+Name: inflation-classifier
+Version: 0.1.0
+Summary: classify spending data to 8 catagories used by consumer price index
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: accelerate>=1.12.0
+Requires-Dist: datasets>=4.6.1
+Requires-Dist: pandas>=3.0.1
+Requires-Dist: torch>=2.10.0
+Requires-Dist: transformers>=5.2.0
+
+# Dependencies
+The standard library: 🤗 Transformers
+The go-to is Hugging Face's transformers library. It's the central hub for downloading, loading, and running pretrained models. For your use case you'll use its pipeline API, which is a high-level wrapper that handles tokenization, inference, and decoding in one call.
+What you need and why:
+transformers — the HF library itself, gives you the pipeline and model classes
+torch — the ML backend. Transformers supports PyTorch and JAX; PyTorch is the default and most widely supported
+datasets — optional but useful HF library for loading/processing data cleanly
+accelerate — HF library that handles device management (CPU/GPU/MPS); transformers will ask for it
+
+# PyTorch and GPUs
+## Mac
+If you're on a Mac with Apple Silicon, PyTorch will automatically use the MPS (Metal) backend which gives you a meaningful speedup over CPU — no extra config needed.
+```uv add transformers torch accelerate datasets```
+
+There is a configuration parameter in the code for Metal (Apple Silicon), versus CPU/GPU.  My experiance has been that explicitly
+setting the device to "mps" didn't make a difference, and per the above paragraph, it will automatically use MPS if available.
+```python
+    # Load the zero-shot pipeline
+    # device=0 uses GPU if available, remove or set device="cpu" to force CPU
+    classifier = pipeline(
+        "zero-shot-classification",
+        model="facebook/bart-large-mnli",
+        device=0  # or "mps" on Apple Silicon, or "cpu"
+    )
+```
+
+## Regarding GPU support with torch,
+If you're on Linux with an NVIDIA GPU, replace torch with:
+bashuv add transformers accelerate datasets
+```uv add torch --index-url https://download.pytorch.org/whl/cu121```
+Note: Adjust cu121 to match your CUDA version.
+
+# How to run the CLI
+The first step gets the dependencies installed. The second step runs the CLI.
+
+From the UV project root (inflation-classifier directory):
+1. uv sync
+2. uv run inflation_classifier [--help, --list-wrong] path-to-csv-file
