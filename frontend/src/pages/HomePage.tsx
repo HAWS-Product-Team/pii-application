@@ -5,7 +5,7 @@ export default function Homepage() {
     return (
         <div className="w-screen mx-auto py-10 text-center">
             <h1 className="text-4xl">
-                Track Your Inflation,<br/> Not Theirs
+                Track Luke's Inflation,<br/> Not Theirs
             </h1>
             <p className="max-w-2xl mx-auto py-10">
                 Official inflation rates don't reflect your life. Build a personal
