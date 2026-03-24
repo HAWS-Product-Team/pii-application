@@ -1,19 +1,23 @@
+import {useState } from 'react';
 import importLogo from '../assets/inbox.svg';
-import folderLogo from '../assets/folder.svg';
+import UploadFile from '../components/UploadFile';
 
 export default function UploadPage() {
+    const [ isImporting, setIsImporting ] = useState(false);
 
     const handleImport = () => {
-
-    }
+        setIsImporting(true);
+    };
 
     const handleExport = () => {
 
-    }
+    };
 
     const handleCalculate = () => {
-
-    }
+        // check if the user uploaded the file
+        // see if the results is ready
+        // have the user navigate to the results
+    };
 
     return (
             <div className="w-screen mx-auto py-10">
@@ -42,19 +46,11 @@ export default function UploadPage() {
                             </button>
                         </div>
                         <div className='bg-white bg-opacity-35 flex flex-col max-w-7xl border-4 rounded-lg border-dashed border-[#00C3D0] p-4 my-10'>
-                            <div className='flex space-x-4 justify-center my-8'>
-                                <img src={folderLogo} alt='folder'/>
-                                <span className='py-4 text-2xl font-bold'>
-                                    Drag & drop CSV file here
-                                </span>
-                            </div>
-                            <div>
-                                <span className='text-gray-700'> 
-                                    or use the import button above
-                                </span>
-                            </div>
+                            <UploadFile 
+                                isImporting={isImporting}
+                                onImportComplete={() => setIsImporting(false)}    
+                            />
                         </div>
-                        
                     </div>
                 </div>
                 <button onClick={handleCalculate} className='inline-block my-10 bg-[#33B4A8] text-2xl rounded-xl text-white font-bold px-20 py-4'>
