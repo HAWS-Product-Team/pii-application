@@ -1,9 +1,12 @@
 # Dependencies
 The standard library: 🤗 Transformers
-The go-to is Hugging Face's transformers library. It's the central hub for downloading, loading, and running pretrained models. For your use case you'll use its pipeline API, which is a high-level wrapper that handles tokenization, inference, and decoding in one call.
-What you need and why:
-transformers — the HF library itself, gives you the pipeline and model classes
-torch — the ML backend. Transformers supports PyTorch and JAX; PyTorch is the default and most widely supported
+
+The go-to is Hugging Face's transformers library. It's the central hub for downloading, loading, and running pretrained models. 
+For this use case, use its pipeline API, which is a high-level wrapper that handles tokenization, inference, and decoding in one call.
+
+What's needed and why:
+transformers — the HF library itself, has the pipeline and model classes
+PyTorch — Transformers supports PyTorch and JAX; PyTorch is the default and most widely supported
 datasets — optional but useful HF library for loading/processing data cleanly
 accelerate — HF library that handles device management (CPU/GPU/MPS); transformers will ask for it
 
@@ -26,7 +29,7 @@ setting the device to "mps" didn't make a difference, and per the above paragrap
 
 ## Regarding GPU support with torch,
 If you're on Linux with an NVIDIA GPU, replace torch with:
-bashuv add transformers accelerate datasets
+```bash uv add transformers accelerate datasets ```
 ```uv add torch --index-url https://download.pytorch.org/whl/cu121```
 Note: Adjust cu121 to match your CUDA version.
 
@@ -36,3 +39,5 @@ The first step gets the dependencies installed. The second step runs the CLI.
 From the UV project root (inflation-classifier directory):
 1. uv sync
 2. uv run inflation_classifier [--help, --list-wrong] path-to-csv-file
+
+Example: uv run inflation-classifier ../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv
