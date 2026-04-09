@@ -1,0 +1,3 @@
+- canary 
+- title should appear in screen 
+- button clicks work as proper 
