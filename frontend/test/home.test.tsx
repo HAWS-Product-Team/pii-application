@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import Homepage from '../src/pages/HomePage'
 import { MemoryRouter } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
 
 test("canary", () => expect(true).toBe(true))
 
@@ -14,4 +15,20 @@ test("Home Page Title Loads", () => {
 )
 
     expect(screen.getByText("Track Your Inflation, Not Theirs")).toBeInTheDocument()
+})
+
+test("Calculate Link works as Expected", () => {
+    render(<MemoryRouter>
+        <Homepage/>
+    </MemoryRouter>)
+
+    expect(screen.getByRole("link", {name: "Calculate"})).toHaveAttribute("href", "/upload")
+})
+
+test("Learn More appears in Home Page", () => {
+    render(<MemoryRouter>
+        <Homepage/>
+    </MemoryRouter>)
+
+    expect(screen.getByRole("link", {name: "Learn more"})).toHaveAttribute("href", "/")
 })
