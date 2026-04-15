@@ -3,7 +3,6 @@ import '@testing-library/jest-dom/vitest'
 import { render, screen } from '@testing-library/react'
 import Homepage from '../src/pages/HomePage'
 import { MemoryRouter } from 'react-router-dom'
-import userEvent from '@testing-library/user-event'
 
 test("canary", () => expect(true).toBe(true))
 
