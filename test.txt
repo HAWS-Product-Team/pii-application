@@ -1,3 +1,4 @@
-- canary 
-- title should appear in screen 
-- button clicks work as proper 
+x canary 
+x Track Your Inflation title should appear in home page
+x Calculate link renders as expected
+x Learn more link opens as expected 
