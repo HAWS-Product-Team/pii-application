@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-
+import ComparisonCard from '../components/ComparisonCard'
+import HighestInflationCard from '../components/HighestInflationCard'
 export default function Homepage() {
 
     return (
@@ -15,6 +16,12 @@ export default function Homepage() {
             <Link to={"/upload"} className='bg-[#33B4A8] rounded-full text-white px-10 py-1'>
                 Calculate
             </Link>
+            <div className=' px-4'>
+                <div className='flex justify-center space-x-5 py-5 my-5 px-5 border-[#33B4A8] border-2 rounded-lg max-w-2xl mx-auto'>
+                    <ComparisonCard/>
+                    <HighestInflationCard/>
+                </div>
+            </div>
         </div>
     )
 }
