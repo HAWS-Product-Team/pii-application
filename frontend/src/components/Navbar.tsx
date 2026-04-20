@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import logo from '../assets/Logo.svg';
 
 export default function Navbar() {
     const { pathname } = useLocation();
 
     const links = [
+        { to: '/', label: 'Home'},
         { to: '/upload', label: 'Upload'},
         { to: '/dashboard', label: 'Dashboard' },
         { to: '/insights', label: 'Insights' },
@@ -12,10 +12,7 @@ export default function Navbar() {
 
     return (
         <nav className="bg-[#33B4A8] w-screen px-6 py-3">
-            <div className="flex items-center justify-between">
-                <Link to="/" className="flex items-center gap-2 w-[160px]">
-                    <img src={logo} alt="logo" className="h-8 w-8" />
-                </Link>
+            <div className="flex items-center justify-center">
                 <div className="flex items-center space-x-6">
                     {links.map(({ to, label }) => {
                         const isActive = pathname === to;
@@ -34,7 +31,6 @@ export default function Navbar() {
                         );
                     })}
                 </div>
-                <div className="w-[160px]" />
             </div>
         </nav>
     );
