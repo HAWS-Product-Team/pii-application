@@ -6,6 +6,10 @@ import { MemoryRouter } from 'react-router-dom'
 
 test("canary", () => expect(true).toBe(true))
 
+test("Home Smoke Test", () => {
+    render(<MemoryRouter> <Homepage/> </MemoryRouter>)
+})
+
 test("Home Page Title Loads", () => {
     render(
         <MemoryRouter>
@@ -14,10 +18,6 @@ test("Home Page Title Loads", () => {
 )
 
     expect(screen.getByText("Track Your Inflation, Not Theirs")).toBeInTheDocument()
-})
-
-test("Home Smoke Test", () => {
-    render(<MemoryRouter> <Homepage/> </MemoryRouter>)
 })
 
 test("Calculate Link works as Expected", () => {
