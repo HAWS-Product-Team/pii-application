@@ -1,6 +1,6 @@
-import { BrowserRouter as Router, Route, Routes} from 'react-router-dom'
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom'
 import HomePage from './pages/HomePage'
-import DashboardPage from './pages/DashboardPage'
+// import DashboardPage from './pages/DashboardPage'
 import UploadPage from './pages/UploadPage'
 import './App.css'
 import Navbar from './components/Navbar'
@@ -12,14 +12,14 @@ function App() {
     <Router>
       <div className='min-h-screen flex flex-col'>
         <div className='flex-1'>
-          <Navbar/>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/upload" element={<UploadPage />} />
-        </Routes>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            {/* <Route path="/dashboard" element={<DashboardPage />} /> */}
+            <Route path="/upload" element={<UploadPage />} />
+          </Routes>
         </div>
-        <Footer/>
+        <Footer />
       </div>
     </Router>
   )
