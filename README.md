@@ -16,7 +16,28 @@ No code between the two folders is refeferenced directly. Communication between 
    - prediction of future PII
    - what parts of their spending is experiencing greatly different inflation than CPI
   
-# steps to compute PII
+# front end workflow
+1. React app gets CSV and gives to API, a ticket number (random number) is returned to the react app.
+2. React app polls API for an update using that ticket number. The API returns "in progress" until the report is ready.
+3. React app polls API and gets a json message that contains the report.
+
+# backend workflow 
+1. API puts a message on SQS
+2. AWS Batch sees message on SQS which contains the ticket number
+3. AWS Batch executes Data Pipeline
+	4.	PDF is converted to CSV (window of data theft vulnerability starts here)
+ 	5.	CSV is normalized
+ 	6.	normalized data is annonymized (ending the window of personal information vulnerability)
+  	7.	annonymized data is catagorized
+   	8.	PII Calculator generates PII report
+   	9.	CPI as added to report (is it wise to add that dependency into our data pipeline)? Or is it acquired by the front end (depenency is in the front end)?
+   	10.	AWS Batch puts on SQS that the report is done for the ticket number.
+11.	When API passes report to front end, it puts on SQS that the report was delivered
+12.	AWS batch sees "Report Delivered" message for Ticket Number and deletes the data associated with that ticket number (ending the window of data theft vulnerability removed)
+
+React app polls (again) with ticket number and gets json response back from API and then presents visualization to the user.  The data associated with the ticket number is removed.
+  
+# compute PII workflow
 these are steps that the application needs to do in order to compute PII. (Lance: not all these are correct but im putting them here to revise later.)
 	1.	Exploratory analysis: catagorize data using ML
 	2.	Price tracking: For repeat purchases, calculate price changes month-over-month
