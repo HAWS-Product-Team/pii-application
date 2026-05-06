@@ -41,3 +41,7 @@ From the UV project root (inflation-classifier directory):
 2. uv run inflation_classifier [--help, --list-wrong] path-to-csv-file
 
 Example: ```uv run inflation-classifier ../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv```
+
+## WIP
+Test running inference against S3.  Need to sort out S3 creation and wether to use env variables or commandline args
+to pass argument to the inferencer.
