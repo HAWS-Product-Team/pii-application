@@ -1,3 +1,4 @@
+import os
 import time
 from transformers import pipeline
 
@@ -15,12 +16,14 @@ def setup_model():
         "Recreation, Education, and Communication",
     ]
 
+    inf_device = os.environ.get("INFERENCE_DEVICE", "cpu")
     # Load the zero-shot pipeline
-    # device=0 uses GPU if available, remove or set device="cpu" to force CPU
+    # inf_device=0 uses GPU if available, -1 is cpu
+    # also accepts strings: cpu, mps, cuda, cuda:0.
     classifier = pipeline(
         "zero-shot-classification",
         model="facebook/bart-large-mnli",
-        device=0  # or "mps" on Apple Silicon, or "cpu"
+        device=inf_device  # or "mps" on Apple Silicon, or "cpu"
     )
     print("model loaded")
     return classifier, categories
