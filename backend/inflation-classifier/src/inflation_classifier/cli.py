@@ -1,6 +1,8 @@
+import sys
 import pandas as pd
 import argparse
 from inflation_classifier.classifier import setup_model, run_inference
+from inflation_classifier.io import read_input
 
 def report_results(df, csv_name, duration, show_all_failures=False):
     # Evaluate
@@ -39,7 +41,7 @@ def main():
     parser = argparse.ArgumentParser(description="Classify item descriptions into inflation categories.")
     parser.add_argument(
         "csv_path",
-        help="Path to the CSV file for classification.",
+        help="Path to the CSV file for classification. Supports local and S3 paths (e.g., s3://bucket/path/to/file.csv).",
     )
     parser.add_argument(
         "--list-wrong",
@@ -48,9 +50,13 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load your CSV
+    # Load your input (local or S3)
     csv_path = args.csv_path
-    df = pd.read_csv(csv_path)
+    try:
+        df = read_input(csv_path)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     # Drop category/difficulty to simulate inference
     items = df["item_description"].tolist()

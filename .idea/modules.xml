@@ -2,6 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/anonymizer.iml" filepath="$PROJECT_DIR$/.idea/anonymizer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/inflation-classifier.iml" filepath="$PROJECT_DIR$/.idea/inflation-classifier.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/normalizer.iml" filepath="$PROJECT_DIR$/.idea/normalizer.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/pii-application.iml" filepath="$PROJECT_DIR$/.idea/pii-application.iml" />
     </modules>
   </component>
