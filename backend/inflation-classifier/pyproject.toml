@@ -11,6 +11,7 @@ dependencies = [
     "datasets>=4.6.1",
     "ipykernel>=7.2.0",
     "pandas>=3.0.1",
+    "s3fs>=0.4.2",
     "torch>=2.10.0",
     "transformers>=5.2.0",
 ]
