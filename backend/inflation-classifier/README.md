@@ -1,47 +1,91 @@
-# Dependencies
-The standard library: 🤗 Transformers
+# inflation-classifier
 
-The go-to is Hugging Face's transformers library. It's the central hub for downloading, loading, and running pretrained models. 
-For this use case, use its pipeline API, which is a high-level wrapper that handles tokenization, inference, and decoding in one call.
+CLI tool that classifies purchase item descriptions into inflation categories.
 
-What's needed and why:
-transformers — the HF library itself, has the pipeline and model classes
-PyTorch — Transformers supports PyTorch and JAX; PyTorch is the default and most widely supported
-datasets — optional but useful HF library for loading/processing data cleanly
-accelerate — HF library that handles device management (CPU/GPU/MPS); transformers will ask for it
+## Dependencies
 
-# PyTorch and GPUs
-## Mac
-If you're on a Mac with Apple Silicon, PyTorch will automatically use the MPS (Metal) backend which gives you a meaningful speedup over CPU — no extra config needed.
-```uv add transformers torch accelerate datasets```
+This project uses Hugging Face Transformers for zero-shot classification.
 
-There is a configuration parameter in the code for Metal (Apple Silicon), versus CPU/GPU.  My experiance has been that explicitly
-setting the device to "mps" didn't make a difference, and per the above paragraph, it will automatically use MPS if available.
-```python
-    # Load the zero-shot pipeline
-    # device=0 uses GPU if available, remove or set device="cpu" to force CPU
-    classifier = pipeline(
-        "zero-shot-classification",
-        model="facebook/bart-large-mnli",
-        device=0  # or "mps" on Apple Silicon, or "cpu"
-    )
+Key packages:
+- `transformers` — model/pipeline APIs
+- `torch` — default backend runtime
+- `datasets` — optional data tooling
+- `accelerate` — device/runtime support
+- `boto3` — S3 access for `s3://` input paths
+
+Install and sync from this directory:
+1. `uv sync`
+
+## PyTorch and GPUs
+
+### Mac (Apple Silicon)
+
+PyTorch will typically use MPS automatically when available.
+
+### Linux (NVIDIA)
+
+Use a CUDA-compatible PyTorch build if needed:
+`uv add torch --index-url https://download.pytorch.org/whl/cu121`
+
+Adjust `cu121` to match your CUDA version.
+
+## CLI usage
+
+From `backend/inflation-classifier`:
+1. `uv sync`
+2. `uv run inflation-classifier [--help] [--list-wrong] <path-to-csv-or-s3-uri>`
+
+Supported input values:
+- Local file path, for example:
+  - `../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv`
+- S3 URI in `s3://bucket/key` format, for example:
+  - `s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+
+Examples:
+- Local:
+  - `uv run inflation-classifier ../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv`
+- S3:
+  - `uv run inflation-classifier s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+
+## Docker usage
+
+`docker run --rm -e AWS_PROFILE=pii-infrastructure -v "$HOME/.aws:/root/.aws:ro" inflation-classifier:latest s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+
+## S3 input behavior
+
+The CLI now supports both local paths and S3 URIs as the single input argument.
+
+When an input starts with `s3://`, the classifier will:
+- parse bucket and key
+- read the S3 object
+- load the CSV using the same pandas behavior used for local files
+- run the existing classification flow unchanged
+- print results to `stdout` in the same format as local input
+
+Error cases are surfaced as clear `stderr` messages with a non-zero exit code, including:
+- malformed S3 URI
+- missing bucket or object
+- access denied
+- missing or invalid AWS credentials
+
+## Troubleshooting
+
+### `AccessDenied` / permission denied when reading S3
+
+If your `AWS_PROFILE` is not set to a profile in our AWS account, you may get permission denied errors when reading S3 objects.
+
+Set your profile before running the CLI:
+
+```bash
+AWS_PROFILE=<our-account-profile> uv run inflation-classifier s3://<bucket>/<key>.csv
 ```
 
-## Regarding GPU support with torch,
-If you're on Linux with an NVIDIA GPU, replace torch with:
-```uv add transformers accelerate datasets```
-```uv add torch --index-url https://download.pytorch.org/whl/cu121```
-Note: Adjust cu121 to match your CUDA version.
+Also verify that:
+- the selected IAM user/role has `s3:GetObject` access to the target object
+- the bucket policy allows access for that principal
+- your credentials are valid and not expired
 
-# How to run the CLI
-The first step gets the dependencies installed. The second step runs the CLI.
-
-From the UV project root (inflation-classifier directory):
-1. uv sync
-2. uv run inflation_classifier [--help, --list-wrong] path-to-csv-file
-
-Example: ```uv run inflation-classifier ../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv```
-
-## WIP
-Test running inference against S3.  Need to sort out S3 creation and wether to use env variables or commandline args
-to pass argument to the inferencer.
+# XXX WIP
+- change the path in the dockerfile from "inference" to "classifier."
+- read up on whether or not containers running as a root user is a concern.
+- 
