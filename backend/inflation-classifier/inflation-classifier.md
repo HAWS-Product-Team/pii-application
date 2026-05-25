@@ -20,7 +20,7 @@ Install and sync from this directory:
 
 ### Mac (Apple Silicon)
 
-PyTorch will typically use MPS automatically when available.
+PyTorch will typically use MPS (Metal) automatically when available.
 
 ### Linux (NVIDIA)
 
@@ -42,14 +42,28 @@ Supported input values:
   - `s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
 
 Examples:
+Set environment variable `INFERENCE_DEVICE=mps` to use Metal.
+
 - Local:
   - `uv run inflation-classifier ../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv`
 - S3:
   - `uv run inflation-classifier s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+  - `INFERENCE_DEVICE=mps uv run inflation-classifier s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
 
 ## Docker usage
 
 `docker run --rm -e AWS_PROFILE=pii-infrastructure -v "$HOME/.aws:/root/.aws:ro" inflation-classifier:latest s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+
+## AWS Batch
+Create a job and pass in a parameter for the input S3 bucket.  
+
+```bash
+aws batch submit-job \
+  --job-name job-from-aws-cli \
+  --job-queue pii-batch-queue-dev \
+  --job-definition pii-batch-jobdef-fargate-dev \
+  --parameters input_s3_uri=s3://pii-data-pipeline-input-dev/input/123456789/synthetic_purchases_2024_evaluation_data.csv
+```
 
 ## S3 input behavior
 
@@ -86,6 +100,5 @@ Also verify that:
 - your credentials are valid and not expired
 
 # XXX WIP
-- change the path in the dockerfile from "inference" to "classifier."
 - read up on whether or not containers running as a root user is a concern.
 - 
