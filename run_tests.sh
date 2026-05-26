@@ -11,6 +11,7 @@ echo "Running backend tests..."
 echo "Running frontend tests..."
 (
   cd frontend
+  npm ci
   npm run test 
 )
 
