@@ -1,11 +1,12 @@
-README.md
 pyproject.toml
 src/inflation_classifier/__init__.py
 src/inflation_classifier/classifier.py
 src/inflation_classifier/cli.py
+src/inflation_classifier/io.py
 src/inflation_classifier.egg-info/PKG-INFO
 src/inflation_classifier.egg-info/SOURCES.txt
 src/inflation_classifier.egg-info/dependency_links.txt
 src/inflation_classifier.egg-info/entry_points.txt
 src/inflation_classifier.egg-info/requires.txt
 src/inflation_classifier.egg-info/top_level.txt
+tests/test_io.py
