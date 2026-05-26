@@ -24,13 +24,3 @@ jobs:
 
       - name: Run tests
         run: bash run_tests.sh 
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy
-        run: echo "Add your deploy step here"
