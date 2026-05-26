@@ -1,5 +1,16 @@
+echo "Running backend tests..."
+(
+  cd backend/inflation-classifier
+  uv sync
+
+  uv run coverage run -m pytest
+  uv run coverage report -m
+)
+
 echo "Running frontend tests..."
-cd frontend
-npx vitest run --coverage
+(
+  cd frontend
+  npx vitest run --coverage
+)
 
 echo "All tests passed!"
