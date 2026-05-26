@@ -1,3 +1,5 @@
+set -e
+
 echo "Running backend tests..."
 (
   cd backend/inflation-classifier
