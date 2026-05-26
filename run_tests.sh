@@ -1,7 +1,6 @@
 echo "Running backend tests..."
 (
   cd backend/inflation-classifier
-  uv sync
 
   uv run coverage run -m pytest
   uv run coverage report -m
