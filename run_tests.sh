@@ -9,7 +9,7 @@ echo "Running backend tests..."
 echo "Running frontend tests..."
 (
   cd frontend
-  npx vitest run --coverage
+  npm run test 
 )
 
 echo "All tests passed!"
