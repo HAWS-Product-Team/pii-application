@@ -233,4 +233,4 @@ containerized (Docker)--most expensive
 - **Seasonality** needs careful handling (winter coats shouldn’t spike clothing inflation)
 - **Minimum data requirement:** ~6 months of purchase history for meaningful results
 - **Category coverage:** Amazon’s native categories should be leveraged where available
-- **Performance:** Consider lazy-loading and caching for large order histories (10,000+ items)
+- **Performance:** Consider lazy-loading and caching for large order histories (10,000+ items )
