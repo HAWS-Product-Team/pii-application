@@ -62,7 +62,7 @@ aws batch submit-job \
   --job-name job-from-aws-cli \
   --job-queue pii-batch-queue-dev \
   --job-definition pii-batch-jobdef-fargate-dev \
-  --parameters input_s3_uri=s3://pii-data-pipeline-input-dev/input/123456789/synthetic_purchases_2024_evaluation_data.csv
+  --parameters input_s3_uri=s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv
 ```
 
 ## S3 input behavior
