@@ -1,2 +1,0 @@
-inflation_classifier
-tests
