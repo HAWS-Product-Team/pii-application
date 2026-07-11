@@ -16,3 +16,4 @@
 requires.txt
 requirements.txt
 
+**/karate-reports/
