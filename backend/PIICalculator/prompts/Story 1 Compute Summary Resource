@@ -1,4 +1,4 @@
-# User Story: Personal CPI Inflation Calculator
+# User Story: Compute summary resource
 
 ## Title
 As a user, I want to process my purchase history CSV and compute a personal inflation index by category, so that I can understand my experienced inflation over time.
@@ -50,59 +50,7 @@ Print a JSON object to standard out (stdout).
 
   "summary": {
     "pii": 7.2
-  },
-
-  "categories": [
-        {
-      "category": "Food & Beverages",
-      "weight": 0.2150,
-      "total_spend": 4300.00,
-      "inflation": 0.0910
-    },
-    {
-      "category": "Housing",
-      "weight": 0.3100,
-      "total_spend": 6200.00,
-      "inflation": 0.0525
-    },
-    {
-      "category": "Apparel",
-      "weight": 0.0500,
-      "total_spend": 1000.00,
-      "inflation": 0.0330
-    },
-    {
-      "category": "Transportation",
-      "weight": 0.1400,
-      "total_spend": 2800.00,
-      "inflation": 0.1120
-    },
-    {
-      "category": "Medical Care",
-      "weight": 0.0850,
-      "total_spend": 1700.00,
-      "inflation": 0.0640
-    },
-    {
-      "category": "Recreation",
-      "weight": 0.0700,
-      "total_spend": 1400.00,
-      "inflation": 0.0410
-    },
-    {
-      "category": "Education & Communication",
-      "weight": 0.0650,
-      "total_spend": 1300.00,
-      "inflation": 0.0280
-    },
-    {
-      "category": "Other Goods & Services",
-      "weight": 0.0650,
-      "total_spend": 1300.00,
-      "inflation": 0.0555
-    }
-
-  ],
+  }
 
   "_links": {
     "self": { "href": "/reports/12345" }
