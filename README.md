@@ -40,10 +40,9 @@ React app polls (again) with ticket number and gets json response back from API 
 # compute PII workflow
 these are steps that the application needs to do in order to compute PII. (Lance: not all these are correct but im putting them here to revise later.)
 	1.	Exploratory analysis: catagorize data using ML
-	2.	Price tracking: For repeat purchases, calculate price changes month-over-month
-	3.	(necessary?)ML feature engineering: Create features like average price per category, seasonality, trend
-	4.	(necessary to train a model for each user im order to predict future?) Model building: Train models to predict inflation in your spending patterns
-	5.	Validation: Compare your personal inflation to official CPI—where do they diverge?
+	2.  Compute the inflation of the 8 CPI categories over the time period of the data.
+	3.	Insights: Compare your personal inflation to official CPI—where do they diverge?  Compare your weights and 
+categories versus the official CPI categories.
 
 -----
 
@@ -74,14 +73,11 @@ Process each order by:
 
 - Parsing structured fields (date, price, quantity, description)
 - Normalizing product names (remove extra whitespace, standardize formatting)
-- Extracting units (e.g., “120-count paper towels” → per-unit price)
-- Handling edge cases (variety packs, weight-based items)
-- Inferring category (CPI category) using ML text classification (DistilBERT, BERT, or simpler models)
 
 -----
 
 ### 3. Category Classification Model (ML)
-
+Inferring category (CPI category) using ML text classification (DistilBERT, BERT, or simpler models)
 Use a model to categorize items automatically.
 
 **Inputs:** Item name + description  
@@ -95,12 +91,10 @@ Read more about the model [here](model%20for%20classification.md).
 Group purchases by:
 
 - Category
-- Item SKU (inferred if possible)
-- Unit-normalized prices
 
 Compute:
 
-- Price per unit over time
+- Price per category over time
 - Rolling averages (e.g., 30-day, 90-day)
 - Year-over-year (YoY) and month-over-month (MoM) price changes
 
@@ -174,7 +168,8 @@ Predict a user’s future costs using:
 
 - ✅ **Do:** Let users voluntarily upload their Amazon order CSV
 - ✅ **Do:** Process data locally or with strong anonymization
--  ? **caution:** Scrappimg Amazon or any retailer may resukt in them blocking our site
+-  ? **caution:** Scrappimg Amazon or any retailer should be executed in user's browser to prevent a centralized 
+site from being bloced.
 - ❌ **Don’t:** Store raw data longer than necessary
 - ✅ **Do:** Be transparent about what data you collect and retain
 
@@ -188,24 +183,13 @@ Predict a user’s future costs using:
 1. Compute category weights (personal spending shares)
 1. Calculate personal inflation metrics
 1. Display:
-- Last 24+ months of inflation
+- Last N months of inflation  <- dynamic would be nice
 - Category-level breakdown
-- Top drivers of personal inflation
+- Insight of top drivers of personal inflation (savers or spenders)
 - Comparison to national CPI
 
 -----
 
-## Next Steps
-
-Choose what to build first:
-
-- [ ] Sample Python code for ingestion & inflation computation
-- [ ] ML architecture diagram
-- [X] Frontend mockups
-- [X] Tech stack recommendation (serverless, containerized, etc.)
-- [ ] Sample data & test cases
-
------
 
 ## Tech Stack Considerations
 
@@ -228,7 +212,7 @@ containerized (Docker)--most expensive
 -----
 
 ## Known Limitations & Future Work
-
+- keep it at the category level to avoid individual item details.
 - **Unit extraction** is non-trivial for real-world data (variety packs, weight-based items)
 - **Seasonality** needs careful handling (winter coats shouldn’t spike clothing inflation)
 - **Minimum data requirement:** ~6 months of purchase history for meaningful results

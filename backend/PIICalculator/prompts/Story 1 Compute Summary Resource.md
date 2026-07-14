@@ -1,7 +1,9 @@
 # User Story: Compute summary resource
 
 ## Title
-As a user, I want to process my purchase history CSV and compute a personal inflation index by category, so that I can understand my experienced inflation over time.
+As a user, I want to process my purchase history CSV and compute a personal inflation index by category, so that I can 
+understand my experienced inflation over time.  This work will be in a python script at `backend/PIICalculator`. The 
+resulting JSON will be output to stdout.
 
 ## Input
 A CSV file where each row represents a single purchase with the columns:

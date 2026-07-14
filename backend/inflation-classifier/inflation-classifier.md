@@ -31,9 +31,21 @@ Adjust `cu121` to match your CUDA version.
 
 ## CLI usage
 
+`inflation-classifier` is a tool that categorizes spending data into 8 Consumer Price Index (CPI) categories:
+- Housing
+- Food and Beverages
+- Transportation
+- Medical Care
+- Energy
+- Household Furnishings and Operations
+- Apparel
+- Recreation, Education, and Communication
+
+The tool processes a CSV file, using the `item_description` column for classification. By default, it outputs a new CSV to `stdout` containing the original data plus a `category` column with the predicted CPI category.
+
 From `backend/inflation-classifier`:
 1. `uv sync`
-2. `uv run inflation-classifier [--help] [--list-wrong] <path-to-csv-or-s3-uri>`
+2. `uv run inflation-classifier [--help] [--evaluate] [--list-wrong] <path-to-csv-or-s3-uri>`
 
 Supported input values:
 - Local file path, for example:
@@ -100,5 +112,5 @@ Also verify that:
 - your credentials are valid and not expired
 
 # XXX WIP
-- read up on whether or not containers running as a root user is a concern.
+- read up on whether or not containers executing a process as a root user is a concern.
 - 

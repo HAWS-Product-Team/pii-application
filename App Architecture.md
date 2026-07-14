@@ -4,33 +4,33 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              REACT WEB APP                                   │
-│                        (Browser, No AWS Credentials)                         │
+│                              REACT WEB APP                                  │
+│                        (Browser, No AWS Credentials)                        │
 └────────────────────────────────────┬────────────────────────────────────────┘
                                      │
                                      │ Authenticated HTTPS
                                      │ (API Key or OAuth)
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           AWS API GATEWAY                                    │
-│                      (Public HTTPS endpoint)                                 │
+│                           AWS API GATEWAY                                   │
+│                      (Public HTTPS endpoint)                                │
 └────────────────────────────────────┬────────────────────────────────────────┘
                                      │
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  ECS FARGATE - FastAPI REST Service                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ Endpoints:                                                          │   │
-│  │  POST /upload        → Validate CSV, upload to S3, queue job       │   │
-│  │  GET  /results/{id}  → Check S3 for results, return status         │   │
-│  │                                                                     │   │
-│  │ IAM Role: FastAPIServiceRole                                       │   │
-│  │  - s3:PutObject (restricted to /uploads/*)                        │   │
-│  │  - s3:GetObject (restricted to /uploads/*)                        │   │
-│  │  - sqs:SendMessage (to standard queue only)                       │   │
-│  │                                                                     │   │
-│  │ Auto-scaling: 2-3 tasks, scale on API request rate                │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Endpoints:                                                          │    │
+│  │  POST /upload        → Validate CSV, upload to S3, queue job        │    │
+│  │  GET  /results/{id}  → Check S3 for results, return status          │    │
+│  │                                                                     │    │
+│  │ IAM Role: FastAPIServiceRole                                        │    │
+│  │  - s3:PutObject (restricted to /uploads/*)                          │    │
+│  │  - s3:GetObject (restricted to /uploads/*)                          │    │
+│  │  - sqs:SendMessage (to standard queue only)                         │    │
+│  │                                                                     │    │
+│  │ Auto-scaling: 2-3 tasks, scale on API request rate                  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 └────────────────────────────────────┬────────────────────────────────────────┘
                                      │
                     ┌────────────────┼────────────────┐
@@ -58,35 +58,35 @@
                                        ▼
         ┌──────────────────────────────────────────────────────────┐
         │  ECS FARGATE - Worker Tasks                              │
-        │  ┌────────────────────────────────────────────────────┐ │
-        │  │ Process:                                           │ │
-        │  │  1. Pull CSV from S3                              │ │
-        │  │  2. Clean & normalize data                        │ │
-        │  │  3. ML classification (TF-IDF, model pre-loaded)  │ │
-        │  │  4. Compute inflation metrics                     │ │
-        │  │  5. Write results to S3 (/results/{job_id}/)     │ │
-        │  │  6. Delete from SQS                               │ │
-        │  │  7. On error → move to DLQ                        │ │
-        │  │                                                    │ │
-        │  │ ML Model: Baked into Docker image                 │ │
-        │  │           (TF-IDF + Logistic Regression)          │ │
-        │  │           (~50-100MB, loaded at startup)          │ │
-        │  │                                                    │ │
-        │  │ IAM Role: WorkerTaskRole                          │ │
-        │  │  - s3:GetObject (restricted to /uploads/*)        │ │
-        │  │  - s3:PutObject (restricted to /results/*)        │ │
-        │  │  - s3:DeleteObject (restricted to /uploads/*)     │ │
-        │  │  - sqs:ReceiveMessage (from main queue only)      │ │
-        │  │  - sqs:DeleteMessage (from main queue only)       │ │
-        │  │  - sqs:SendMessage (to DLQ only)                  │ │
-        │  │                                                    │ │
-        │  │ Configuration:                                    │ │
-        │  │  - CPU: 1 vCPU                                    │ │
-        │  │  - Memory: 2GB                                    │ │
-        │  │  - Count: 2-4 tasks                               │ │
-        │  │  - Auto-scaling: On queue depth (target: 5 msgs)  │ │
-        │  │  - Timeout: 5 minutes per job                     │ │
-        │  └────────────────────────────────────────────────────┘ │
+        │  ┌────────────────────────────────────────────────────┐  │
+        │  │ Process:                                           │  │
+        │  │  1. Pull CSV from S3                               │  │
+        │  │  2. Clean & normalize data                         │  │
+        │  │  3. ML classification (TF-IDF, model pre-loaded)   │  │
+        │  │  4. Compute inflation metrics                      │  │
+        │  │  5. Write results to S3 (/results/{job_id}/)       │  │
+        │  │  6. Delete from SQS                                │  │
+        │  │  7. On error → move to DLQ                         │  │
+        │  │                                                    │  │
+        │  │ ML Model: Baked into Docker image                  │  │
+        │  │           (TF-IDF + Logistic Regression)           │  │
+        │  │           (~50-100MB, loaded at startup)           │  │
+        │  │                                                    │  │
+        │  │ IAM Role: WorkerTaskRole                           │  │
+        │  │  - s3:GetObject (restricted to /uploads/*)         │  │
+        │  │  - s3:PutObject (restricted to /results/*)         │  │
+        │  │  - s3:DeleteObject (restricted to /uploads/*)      │  │
+        │  │  - sqs:ReceiveMessage (from main queue only)       │  │
+        │  │  - sqs:DeleteMessage (from main queue only)        │  │
+        │  │  - sqs:SendMessage (to DLQ only)                   │  │
+        │  │                                                    │  │
+        │  │ Configuration:                                     │  │
+        │  │  - CPU: 1 vCPU                                     │  │
+        │  │  - Memory: 2GB                                     │  │
+        │  │  - Count: 2-4 tasks                                │  │
+        │  │  - Auto-scaling: On queue depth (target: 5 msgs)   │  │
+        │  │  - Timeout: 5 minutes per job                      │  │
+        │  └────────────────────────────────────────────────────┘  │
         └──────────────────────────────────────────────────────────┘
 ```
 
