@@ -15,4 +15,4 @@
 # Don't check in the below in an environment managed by UV.
 requires.txt
 requirements.txt
-
+.ds_store
