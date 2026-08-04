@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/inflation-classifier.iml" filepath="$PROJECT_DIR$/.idea/inflation-classifier.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/normalizer.iml" filepath="$PROJECT_DIR$/.idea/normalizer.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/pii-application.iml" filepath="$PROJECT_DIR$/.idea/pii-application.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/piicalculator.iml" filepath="$PROJECT_DIR$/.idea/piicalculator.iml" />
     </modules>
   </component>
 </project>
