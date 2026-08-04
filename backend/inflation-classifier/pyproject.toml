@@ -1,7 +1,7 @@
 [project]
 name = "inflation-classifier"
 version = "0.1.0"
-description = "classify spending data to 8 catagories used by consumer price index"
+description = "classify spending data to 8 categories used by consumer price index"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
     "datasets>=4.6.1",
     "ipykernel>=7.2.0",
     "pandas>=3.0.1",
+    "pandas-stubs~=3.0.1",
     "s3fs>=0.4.2",
     "torch>=2.10.0",
     "transformers>=5.2.0",

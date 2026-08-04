@@ -16,7 +16,9 @@ The landing page will serve as the entry point for users, providing a clear intr
 
 ## Calculate Personal Inflation Index
 
-This section will contain a CSV prompt where users either import their CSV file containing relevant information, such as income, expenses, and other financial data or export a CSV file. The design should prioritize ease of use and navigation.
+This section will contain a CSV prompt where users either import their CSV file containing relevant information, such 
+as income, expenses, and other financial data or export a CSV file. The design should prioritize 
+ease of use and navigation.
 
 * Import/Export CSV file (e.g., columns: income, net worth, savings rate)
 * A submit button that triggers the calculation process
@@ -24,7 +26,8 @@ This section will contain a CSV prompt where users either import their CSV file 
 ![Calculate Page Design](/public/Calculate.png)
 
 ## Results Page
-The results page will display the calculated personal inflation index, along with relevant insights. This section should be visually engaging and easy to read.
+The results page will display the calculated personal inflation index, along with relevant insights. 
+This section should be visually engaging and easy to read.
 
 * A brief summary of the user's financial situation and how it relates to the calculation
 * Data visualizations using interactive charts (e.g., line graph for expense distribution over time) and tables to compare user's financial data against national averages, highlighting key trends and areas for improvement.
