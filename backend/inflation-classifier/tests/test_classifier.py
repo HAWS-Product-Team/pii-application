@@ -11,6 +11,8 @@ def test_setup_model():
         
         assert classifier == mock_classifier
         assert len(categories) == 8
+        assert all("," not in c for c in categories)
+        assert "Recreation Education and Communication" in categories
         mock_pipeline.assert_called_once_with(
             "zero-shot-classification",
             model="facebook/bart-large-mnli",

@@ -14,7 +14,7 @@ def setup_model():
         "Energy",
         "Household Furnishings and Operations",
         "Apparel",
-        "Recreation, Education, and Communication",
+        "Recreation Education and Communication",
     ]
 
     inf_device = os.environ.get("INFERENCE_DEVICE", "cpu")
