@@ -30,6 +30,11 @@ Use a CUDA-compatible PyTorch build if needed:
 Adjust `cu121` to match your CUDA version.
 
 ## CLI usage
+Use the CLI to see the extended help and usage information.
+```bash
+uv synch
+uv run inflation-classifier -h
+```
 
 `inflation-classifier` is a tool that categorizes spending data into 8 Consumer Price Index (CPI) categories:
 - Housing
@@ -39,7 +44,7 @@ Adjust `cu121` to match your CUDA version.
 - Energy
 - Household Furnishings and Operations
 - Apparel
-- Recreation, Education, and Communication
+- Recreation Education and Communication
 
 The tool processes a CSV file, using the `item_description` column for classification. By default, it outputs a new CSV to `stdout` containing the original data plus a `category` column with the predicted CPI category.
 

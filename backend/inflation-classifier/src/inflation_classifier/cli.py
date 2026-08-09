@@ -47,7 +47,7 @@ def main():
         description="""
 Inflation-classifier categorizes spending data into 8 Consumer Price Index (CPI) categories:
 Housing, Food and Beverages, Transportation, Medical Care, Energy,
-Household Furnishings and Operations, Apparel, and Recreation, Education, and Communication.
+Household Furnishings and Operations, Apparel, and Recreation Education and Communication.
 
 The tool processes a CSV file, using the 'item_description' column to perform classification.
 By default, it outputs the original CSV data plus a new 'category' column to stdout.
