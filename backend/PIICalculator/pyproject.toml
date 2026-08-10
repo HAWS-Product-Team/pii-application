@@ -4,10 +4,16 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pandas>=2.0.0",
+    "s3fs>=0.4.2",
+    "boto3>=1.0.0",
+    "numpy>=1.20.0",
+    "pandas-stubs~=3.0.5",
+]
 
 [project.scripts]
-piicalculator = "piicalculator.cli:main"
+pii-calculator = "piicalculator.cli:main"
 
 [tool.uv]
 package = true
@@ -22,6 +28,7 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "ruff>=0.15.4",
 ]
