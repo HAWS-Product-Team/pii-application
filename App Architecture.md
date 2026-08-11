@@ -1,10 +1,9 @@
 # Personal Inflation Index - Solutions Architecture
 
 ## High-Level Architecture Diagram
-
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              REACT WEB APP                                  │
+│                              REACT WEB APP  (AWS Amplify)                   │
 │                        (Browser, No AWS Credentials)                        │
 └────────────────────────────────────┬────────────────────────────────────────┘
                                      │
@@ -17,56 +16,60 @@
 └────────────────────────────────────┬────────────────────────────────────────┘
                                      │
                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ECS FARGATE - FastAPI REST Service                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │ Endpoints:                                                          │    │
-│  │  POST /upload        → Validate CSV, upload to S3, queue job        │    │
-│  │  GET  /results/{id}  → Check S3 for results, return status          │    │
-│  │                                                                     │    │
-│  │ IAM Role: FastAPIServiceRole                                        │    │
-│  │  - s3:PutObject (restricted to /uploads/*)                          │    │
-│  │  - s3:GetObject (restricted to /uploads/*)                          │    │
-│  │  - sqs:SendMessage (to standard queue only)                         │    │
-│  │                                                                     │    │
-│  │ Auto-scaling: 2-3 tasks, scale on API request rate                  │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-└────────────────────────────────────┬────────────────────────────────────────┘
-                                     │
-                    ┌────────────────┼────────────────┐
-                    │                │                │
-                    ▼                ▼                ▼
-        ┌──────────────────┐  ┌──────────────────┐  ┌─────────────┐
-        │   S3 Bucket      │  │  SQS Standard    │  │   S3 Bucket │
-        │   (CSV Uploads)  │  │   Queue          │  │  (Results)  │
-        │                  │  │                  │  │             │
-        │ Lifecycle: Delete│  │ Retention: 14d   │  │ Lifecycle:  │
-        │ after processing │  │                  │  │ Delete after│
-        │ (production)     │  │ DLQ enabled      │  │ 30 days     │
-        │                  │  │ (max retries: 3) │  │             │
-        └──────────────────┘  └────────┬─────────┘  └─────────────┘
-                                       │
-                                       ▼
                     ┌──────────────────────────────────┐
-                    │   SQS Dead-Letter Queue          │
-                    │   (Failed job messages)          │
-                    │   (Retained for debugging)       │
-                    └──────────────────────────────────┘
-                                       │
-                                       │ Workers pull from main queue
-                                       │
-                                       ▼
+                    │        SQS Standard Queue        │
+                    │                                  │
+                    │        Retention: 14d            │
+                    │        DLQ enabled               │
+                    │        (max retries: 3)          │
+                    └────────────────┬─────────────────┘
+                                     │
+                          ┌──────────┴─────────────┐
+                          │                        │
+                          ▼                        ▼
+        ┌──────────────────────────────────┐  ┌──────────────────────────────────┐
+        │  Message triggers orchestration  │  │   SQS Dead-Letter Queue          │
+        │                                  │  │   (Failed job messages)          │
+        └────────────────┬─────────────────┘  │   (Retained for debugging)       │
+                         │                    └──────────────────────────────────┘
+                         ▼
         ┌──────────────────────────────────────────────────────────┐
-        │  ECS FARGATE - Worker Tasks                              │
+        │  AWS STEP FUNCTIONS - Pipeline Orchestrator              │
+        │  ┌────────────────────────────────────────────────────┐  │
+        │  │ State Machine (staged pipeline):                   │  │
+        │  │                                                    │  │
+        │  │  [1] Normalize       → Lambda   (future)           │  │
+        │  │        │                (data cleanup, <60s)       │  │
+        │  │        ▼                                           │  │
+        │  │  [2] Anonymize       → Lambda   (future)           │  │
+        │  │        │                (data cleanup, <60s)       │  │
+        │  │        ▼                                           │  │
+        │  │  [3] Classify        → ECS Fargate Worker          │  │
+        │  │        │                (heavy ML, tens of min)    │  │
+        │  │        ▼                                           │  │
+        │  │  [4] Calculate       → Lambda                      │  │
+        │  │        │                (inflation metrics, <60s)  │  │
+        │  │        ▼                                           │  │
+        │  │     pii-report                                     │  │
+        │  │                                                    │  │
+        │  │ Each stage reads its input artifact from S3 and    │  │
+        │  │ writes out the result in s3; Step Functions passes │  │
+        │  │ the S3 uris between states. Per-stage retries      │  │
+        │  │ and visibility built in. On error → DLQ.           │  │
+        │  └────────────────────────────────────────────────────┘  │
+        └────────────────────────────┬─────────────────────────────┘
+                                     │
+                                     ▼
+        ┌──────────────────────────────────────────────────────────┐
+        │  ECS FARGATE - Worker Tasks (Classify stage)             │
         │  ┌────────────────────────────────────────────────────┐  │
         │  │ Process:                                           │  │
         │  │  1. Pull CSV from S3                               │  │
         │  │  2. Clean & normalize data                         │  │
         │  │  3. ML classification (TF-IDF, model pre-loaded)   │  │
-        │  │  4. Compute inflation metrics                      │  │
-        │  │  5. Write results to S3 (/results/{job_id}/)       │  │
-        │  │  6. Delete from SQS                                │  │
-        │  │  7. On error → move to DLQ                         │  │
+        │  │  4. Write results to S3 (/results/{job_id}/)       │  │
+        │  │  5. Return control to Step Functions               │  │
+        │  │  6. On error → move to DLQ                         │  │
         │  │                                                    │  │
         │  │ ML Model: Baked into Docker image                  │  │
         │  │           (TF-IDF + Logistic Regression)           │  │
@@ -88,8 +91,21 @@
         │  │  - Timeout: 5 minutes per job                      │  │
         │  └────────────────────────────────────────────────────┘  │
         └──────────────────────────────────────────────────────────┘
-```
 
+═══════════════════════════════════════════════════════════════════════════════
+                              S3 STORAGE LAYER
+═══════════════════════════════════════════════════════════════════════════════
+
+        ┌───────────────────────────────┐              ┌───────────────────────────────┐
+        │   S3 Bucket                   │              │   S3 Bucket                   │
+        │(pii-data-pipeline-input-<env>)│              │ pii-data-pipeline-output-<env>│
+        │                               │              │                               │
+        │ Lifecycle: Delete             │              │ Lifecycle:                    │
+        │ after processing              │              │ Delete after                  │
+        │ (production)                  │              │ 30 days                       │
+        │                               │              │                               │
+        └───────────────────────────────┘              └───────────────────────────────┘
+'''
 -----
 
 ## Component Details
