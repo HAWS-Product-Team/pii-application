@@ -46,11 +46,11 @@ uv run inflation-classifier -h
 - Apparel
 - Recreation Education and Communication
 
-The tool processes a CSV file, using the `item_description` column for classification. By default, it outputs a new CSV to `stdout` containing the original data plus a `category` column with the predicted CPI category.
+The tool processes a CSV file, using the `item_description` column for classification. It requires two positional arguments: an input CSV path and an output CSV path. The classified CSV data (original data plus the new 'category' column) is written to the output file.
 
 From `backend/inflation-classifier`:
 1. `uv sync`
-2. `uv run inflation-classifier [--help] [--evaluate] [--list-wrong] <path-to-csv-or-s3-uri>`
+2. `uv run inflation-classifier [--help] [--evaluate] [--list-wrong] <input-csv-path> <output-csv-path>`
 
 Supported input values:
 - Local file path, for example:
@@ -62,14 +62,14 @@ Examples:
 Set environment variable `INFERENCE_DEVICE=mps` to use Metal.
 
 - Local:
-  - `uv run inflation-classifier ../tests/data/small\ test\ set/synthetic_purchases_2024_evaluation_data.csv`
+  - `uv run inflation-classifier input.csv output.csv`
 - S3:
-  - `uv run inflation-classifier s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
-  - `INFERENCE_DEVICE=mps uv run inflation-classifier s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+  - `uv run inflation-classifier s3://bucket/input.csv s3://bucket/output.csv`
+  - `INFERENCE_DEVICE=mps uv run inflation-classifier s3://bucket/input.csv s3://bucket/output.csv`
 
 ## Docker usage
 
-`docker run --rm -e AWS_PROFILE=pii-infrastructure -v "$HOME/.aws:/root/.aws:ro" inflation-classifier:latest s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv`
+`docker run --rm -e AWS_PROFILE=pii-infrastructure -v "$HOME/.aws:/root/.aws:ro" inflation-classifier:latest s3://bucket/input.csv s3://bucket/output.csv`
 
 ## AWS Batch
 Create a job and pass in a parameter for the input S3 bucket.  
@@ -79,19 +79,20 @@ aws batch submit-job \
   --job-name job-from-aws-cli \
   --job-queue pii-batch-queue-dev \
   --job-definition pii-batch-jobdef-fargate-dev \
-  --parameters input_s3_uri=s3://pii-data-pipeline-input-dev/123456789/synthetic_purchases_2024_evaluation_data.csv
+  --parameters input_s3_uri=s3://bucket/input.csv,output_s3_uri=s3://bucket/output.csv
 ```
 
-## S3 input behavior
+## S3 input and output behavior
 
-The CLI now supports both local paths and S3 URIs as the single input argument.
+The CLI supports both local paths and S3 URIs for both input and output arguments.
 
-When an input starts with `s3://`, the classifier will:
-- parse bucket and key
-- read the S3 object
-- load the CSV using the same pandas behavior used for local files
-- run the existing classification flow unchanged
-- print results to `stdout` in the same format as local input
+When an S3 URI (`s3://...`) is used:
+- the classifier will parse bucket and key
+- for input: read the S3 object and load CSV
+- for output: write the resulting CSV back to S3
+- run the existing classification flow
+- progress and logs are written to `stdout`
+- in `--evaluate` mode, the summary report is written to `stdout`
 
 Error cases are surfaced as clear `stderr` messages with a non-zero exit code, including:
 - malformed S3 URI

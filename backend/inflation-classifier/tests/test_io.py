@@ -3,7 +3,7 @@ import pandas as pd
 import io
 from unittest.mock import Mock
 from botocore.exceptions import ClientError, NoCredentialsError
-from inflation_classifier.io import is_s3_uri, parse_s3_uri, read_input
+from inflation_classifier.io import is_s3_uri, parse_s3_uri, read_input, write_output
 
 def test_is_s3_uri():
     assert is_s3_uri("s3://bucket/key") is True
@@ -91,3 +91,25 @@ def test_read_input_local_success(tmp_path):
 def test_read_input_local_not_found():
     with pytest.raises(FileNotFoundError):
         read_input("non_existent_file.csv")
+
+def test_write_output_local_success(tmp_path):
+    f = tmp_path / "output.csv"
+    df = pd.DataFrame({"col1": [1, 2], "col2": ["a", "b"]})
+    write_output(df, str(f))
+    
+    assert f.exists()
+    loaded_df = pd.read_csv(f)
+    pd.testing.assert_frame_equal(df, loaded_df)
+
+def test_write_output_s3_success(mocker):
+    mocked_s3 = Mock()
+    mocker.patch("inflation_classifier.io.boto3.client", return_value=mocked_s3)
+    
+    df = pd.DataFrame({"col1": [1]})
+    write_output(df, "s3://test-bucket/output.csv")
+    
+    mocked_s3.put_object.assert_called_once()
+    args, kwargs = mocked_s3.put_object.call_args
+    assert kwargs["Bucket"] == "test-bucket"
+    assert kwargs["Key"] == "output.csv"
+    assert "col1" in kwargs["Body"]
