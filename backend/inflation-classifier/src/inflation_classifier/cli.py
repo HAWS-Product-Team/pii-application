@@ -2,7 +2,7 @@ import sys
 import pandas as pd
 import argparse
 from inflation_classifier.classifier import setup_model, run_inference
-from inflation_classifier.io import read_input
+from inflation_classifier.io import read_input, write_output
 
 def report_results(df, csv_name, duration, show_all_failures=False):
     # Check if we have what we need for evaluation
@@ -50,18 +50,22 @@ Housing, Food and Beverages, Transportation, Medical Care, Energy,
 Household Furnishings and Operations, Apparel, and Recreation Education and Communication.
 
 The tool processes a CSV file, using the 'item_description' column to perform classification.
-By default, it outputs the original CSV data plus a new 'category' column to stdout.
+The classified CSV data (original data plus the new 'category' column) is written to <output-csv-file>.
 
 Inference runs on the CPU by default.  You chang change with the environment variable INFERENCE_DEVICE to
 the following '0' uses GPU if available, '-1' is cpu, 'cpu', 'mps' Apple Silicon, 'cuda', 'cuda:0'.  
-For example, use: $ INFERENCE_DEVICE=mps uv run inflation-classifier <input.csv>
+For example, use: $ INFERENCE_DEVICE=mps uv run inflation-classifier <input-csv-file> <output-csv-file>
 to run the model on an Apple M1/M2 chip.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "csv_path",
-        help="Path to the CSV file for classification. Supports local and S3 paths (e.g., s3://bucket/path/to/file.csv).",
+        "input_csv",
+        help="Path to the input CSV file for classification. Supports local and S3 paths (e.g., s3://bucket/path/to/file.csv).",
+    )
+    parser.add_argument(
+        "output_csv",
+        help="Path to the output CSV file where results will be saved. Supports local and S3 paths.",
     )
     parser.add_argument(
         "--evaluate",
@@ -76,9 +80,9 @@ to run the model on an Apple M1/M2 chip.
     args = parser.parse_args()
 
     # Load your input (local or S3)
-    csv_path = args.csv_path
+    input_csv = args.input_csv
     try:
-        df = read_input(csv_path)
+        df = read_input(input_csv)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -102,11 +106,19 @@ to run the model on an Apple M1/M2 chip.
     
     if args.evaluate:
         df["predicted"] = predictions
-        report_results(df, csv_path, duration, show_all_failures=args.list_wrong)
+        try:
+            write_output(df, args.output_csv)
+        except Exception as e:
+            print(f"Error writing to {args.output_csv}: {e}", file=sys.stderr)
+            sys.exit(1)
+        report_results(df, input_csv, duration, show_all_failures=args.list_wrong)
     else:
         df["category"] = predictions
-        # Write valid CSV to stdout
-        print(df.to_csv(index=False), end="")
+        try:
+            write_output(df, args.output_csv)
+        except Exception as e:
+            print(f"Error writing to {args.output_csv}: {e}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

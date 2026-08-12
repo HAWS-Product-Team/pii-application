@@ -4,7 +4,7 @@ import sys
 from transformers import pipeline
 
 def setup_model():
-    print("loading model", file=sys.stderr)
+    print("loading model")
     # Your category labels
     categories = [
         "Housing",
@@ -26,17 +26,17 @@ def setup_model():
         model="facebook/bart-large-mnli",
         device=inf_device  # or "mps" on Apple Silicon, or "cpu"
     )
-    print("model loaded", file=sys.stderr)
+    print("model loaded")
     return classifier, categories
 
 def run_inference(classifier, items, categories):
-    print("starting inference", file=sys.stderr)
+    print("starting inference")
     # Run inference
     # multi_label=False means it picks exactly one category (what you want)
     start_time = time.perf_counter()
     results = classifier(items, candidate_labels=categories, multi_label=False)
     end_time = time.perf_counter()
-    print("finished inference", file=sys.stderr)
+    print("finished inference")
 
     duration = end_time - start_time
 
