@@ -1,0 +1,454 @@
+# Personal Inflation Index - Solutions Architecture
+
+## High-Level Architecture Diagram
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              REACT WEB APP  (AWS Amplify)                   │
+│                        (Browser, No AWS Credentials)                        │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+                                     │ Authenticated HTTPS
+                                     │ (API Key or OAuth)
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           AWS API GATEWAY                                   │
+│                      (Public HTTPS endpoint)                                │
+└────────────────────────────────────┬────────────────────────────────────────┘
+                                     │
+                                     ▼
+                    ┌──────────────────────────────────┐
+                    │        SQS Standard Queue        │
+                    │                                  │
+                    │        Retention: 14d            │
+                    │        DLQ enabled               │
+                    │        (max retries: 3)          │
+                    └────────────────┬─────────────────┘
+                                     │
+                          ┌──────────┴─────────────┐
+                          │                        │
+                          ▼                        ▼
+        ┌──────────────────────────────────┐  ┌──────────────────────────────────┐
+        │  Message triggers orchestration  │  │   SQS Dead-Letter Queue          │
+        │                                  │  │   (Failed job messages)          │
+        └────────────────┬─────────────────┘  │   (Retained for debugging)       │
+                         │                    └──────────────────────────────────┘
+                         ▼
+        ┌──────────────────────────────────────────────────────────┐
+        │  AWS STEP FUNCTIONS - Pipeline Orchestrator              │
+        │  ┌────────────────────────────────────────────────────┐  │
+        │  │ State Machine (staged pipeline):                   │  │
+        │  │                                                    │  │
+        │  │  [1] Normalize       → Lambda   (future)           │  │
+        │  │        │                (data cleanup, <60s)       │  │
+        │  │        ▼                                           │  │
+        │  │  [2] Anonymize       → Lambda   (future)           │  │
+        │  │        │                (data cleanup, <60s)       │  │
+        │  │        ▼                                           │  │
+        │  │  [3] Classify        → ECS Fargate Worker          │  │
+        │  │        │                (heavy ML, tens of min)    │  │
+        │  │        ▼                                           │  │
+        │  │  [4] Calculate       → Lambda                      │  │
+        │  │        │                (inflation metrics, <60s)  │  │
+        │  │        ▼                                           │  │
+        │  │     pii-report                                     │  │
+        │  │                                                    │  │
+        │  │ Each stage reads its input artifact from S3 and    │  │
+        │  │ writes out the result in s3; Step Functions passes │  │
+        │  │ the S3 uris between states. Per-stage retries      │  │
+        │  │ and visibility built in. On error → DLQ.           │  │
+        │  └────────────────────────────────────────────────────┘  │
+        └────────────────────────────┬─────────────────────────────┘
+                                     │
+                                     ▼
+        ┌──────────────────────────────────────────────────────────┐
+        │  ECS FARGATE - Worker Tasks (Classify stage)             │
+        │  ┌────────────────────────────────────────────────────┐  │
+        │  │ Process:                                           │  │
+        │  │  1. Pull CSV from S3                               │  │
+        │  │  2. Clean & normalize data                         │  │
+        │  │  3. ML classification (TF-IDF, model pre-loaded)   │  │
+        │  │  4. Write results to S3 (/results/{job_id}/)       │  │
+        │  │  5. Return control to Step Functions               │  │
+        │  │  6. On error → move to DLQ                         │  │
+        │  │                                                    │  │
+        │  │ ML Model: Baked into Docker image                  │  │
+        │  │           (TF-IDF + Logistic Regression)           │  │
+        │  │           (~50-100MB, loaded at startup)           │  │
+        │  │                                                    │  │
+        │  │ IAM Role: WorkerTaskRole                           │  │
+        │  │  - s3:GetObject (restricted to /uploads/*)         │  │
+        │  │  - s3:PutObject (restricted to /results/*)         │  │
+        │  │  - s3:DeleteObject (restricted to /uploads/*)      │  │
+        │  │  - sqs:ReceiveMessage (from main queue only)       │  │
+        │  │  - sqs:DeleteMessage (from main queue only)        │  │
+        │  │  - sqs:SendMessage (to DLQ only)                   │  │
+        │  │                                                    │  │
+        │  │ Configuration:                                     │  │
+        │  │  - CPU: 1 vCPU                                     │  │
+        │  │  - Memory: 2GB                                     │  │
+        │  │  - Count: 2-4 tasks                                │  │
+        │  │  - Auto-scaling: On queue depth (target: 5 msgs)   │  │
+        │  │  - Timeout: 5 minutes per job                      │  │
+        │  └────────────────────────────────────────────────────┘  │
+        └──────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                              S3 STORAGE LAYER
+═══════════════════════════════════════════════════════════════════════════════
+
+        ┌───────────────────────────────┐              ┌───────────────────────────────┐
+        │   S3 Bucket                   │              │   S3 Bucket                   │
+        │(pii-data-pipeline-input-<env>)│              │ pii-data-pipeline-output-<env>│
+        │                               │              │                               │
+        │ Lifecycle: Delete             │              │ Lifecycle:                    │
+        │ after processing              │              │ Delete after                  │
+        │ (production)                  │              │ 30 days                       │
+        │                               │              │                               │
+        └───────────────────────────────┘              └───────────────────────────────┘
+'''
+-----
+
+## Component Details
+
+### 1. React Web App
+
+- **Role:** User-facing frontend
+- **Responsibilities:**
+  - CSV file upload
+  - API authentication (store API key securely)
+  - Poll `/results/{job_id}` every 5 seconds
+  - Display results (inflation metrics, charts)
+- **AWS Access:** None (all requests proxied through FastAPI)
+
+-----
+
+### 2. API Gateway + FastAPI Service
+
+- **Role:** Entry point, validation, job orchestration
+- **Endpoints:**
+  
+  ```
+  POST /upload
+    Request: { csv_file: <binary>, user_id: <string> }
+    Response: { job_id: "abc123", estimated_seconds: 45 }
+  
+  GET /results/{job_id}
+    Response: 
+    {
+      "status": "processing|completed|failed",
+      "progress_percent": 45,
+      "results": { ... }  // null if processing
+    }
+  ```
+- **Validation:**
+  - CSV max size: 100MB
+  - Allowed MIME types: text/csv
+  - Rate limiting: API key per user
+- **IAM Role: FastAPIServiceRole**
+  
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": ["s3:PutObject"],
+        "Resource": "arn:aws:s3:::bucket-name/uploads/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["s3:GetObject"],
+        "Resource": "arn:aws:s3:::bucket-name/uploads/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["sqs:SendMessage"],
+        "Resource": "arn:aws:sqs:region:account:queue-name"
+      }
+    ]
+  }
+  ```
+- **Auto-Scaling:**
+  - Min: 2 tasks
+  - Max: 5 tasks
+  - Target: Scale on API request rate (50 requests/min per task)
+
+-----
+
+### 3. S3 Bucket - CSV Uploads
+
+- **Path:** `s3://bucket-name/uploads/{job_id}/input.csv`
+- **Lifecycle Policy:**
+  
+  ```
+  Delete objects after 1 day (production)
+  Delete objects after processing completes (optional, faster cleanup)
+  ```
+- **Access:**
+  - FastAPI: PUT, GET
+  - Workers: GET
+  - React: None (authenticated upload through FastAPI only)
+
+-----
+
+### 4. SQS Standard Queue
+
+- **Name:** `personal-inflation-jobs`
+- **Configuration:**
+  - Message retention: 14 days
+  - Visibility timeout: 5 minutes
+  - Dead-letter queue: enabled (max receive count: 3)
+  - Max message size: 262 KB
+- **Message format:**
+  
+  ```json
+  {
+    "job_id": "abc123",
+    "csv_s3_location": "s3://bucket-name/uploads/abc123/input.csv",
+    "user_id": "user-456",
+    "timestamp": "2024-02-01T10:30:00Z"
+  }
+  ```
+
+-----
+
+### 5. SQS Dead-Letter Queue
+
+- **Name:** `personal-inflation-jobs-dlq`
+- **Purpose:** Capture failed jobs after 3 retries
+- **Monitoring:** CloudWatch alarm when messages appear
+- **Manual intervention:** Ops team reviews, fixes root cause, requeues
+
+-----
+
+### 6. ECS Fargate - Worker Tasks
+
+- **Role:** Process jobs, compute inflation
+- **Process:**
+1. Poll SQS for messages
+1. Download CSV from S3
+1. Parse, clean, normalize data
+1. Run ML inference (TF-IDF + Logistic Regression)
+1. Compute inflation metrics
+1. Store results in S3 at `s3://bucket-name/results/{job_id}/output.json`
+1. Delete message from SQS
+1. On failure (after 3 auto-retries by SQS): message sent to DLQ
+- **Docker Image:**
+  - Base: `python:3.11-slim`
+  - Includes: FastAPI, pandas, scikit-learn, transformers
+  - ML model baked in (not downloaded at runtime)
+  - Image size: ~1GB
+- **Resource Configuration:**
+  - CPU: 1 vCPU
+  - Memory: 2GB
+  - Job timeout: 5 minutes
+  - Estimated processing time: 30-90 seconds (varies by CSV size)
+- **IAM Role: WorkerTaskRole**
+  
+  ```json
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": ["s3:GetObject"],
+        "Resource": "arn:aws:s3:::bucket-name/uploads/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["s3:PutObject"],
+        "Resource": "arn:aws:s3:::bucket-name/results/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["s3:DeleteObject"],
+        "Resource": "arn:aws:s3:::bucket-name/uploads/*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage"],
+        "Resource": "arn:aws:sqs:region:account:queue-name"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["sqs:SendMessage"],
+        "Resource": "arn:aws:sqs:region:account:queue-name-dlq"
+      }
+    ]
+  }
+  ```
+- **Auto-Scaling:**
+  - Min: 2 tasks
+  - Max: 8 tasks
+  - Scale metric: SQS queue depth (target: ~5 messages per task)
+  - Scale-up: When queue depth > 10
+  - Scale-down: When queue depth < 2 (cooldown: 5 minutes)
+
+-----
+
+### 7. S3 Bucket - Results
+
+- **Path:** `s3://bucket-name/results/{job_id}/output.json`
+- **Content:**
+  
+  ```json
+  {
+    "job_id": "abc123",
+    "status": "completed",
+    "inflation_metrics": {
+      "personal_inflation_12m": 0.047,
+      "personal_inflation_6m": 0.032,
+      "category_breakdown": {
+        "groceries": 0.062,
+        "household": 0.018,
+        "electronics": -0.005
+      },
+      "spending_weights": {
+        "groceries": 0.45,
+        "household": 0.30,
+        "electronics": 0.15
+      }
+    },
+    "generated_at": "2024-02-01T10:31:30Z"
+  }
+  ```
+- **Lifecycle Policy:**
+  
+  ```
+  Delete objects after 30 days
+  ```
+- **Access:**
+  - Workers: PUT
+  - FastAPI: GET
+  - React: None (results fetched through FastAPI)
+
+-----
+
+## Data Flow - Happy Path
+
+```
+1. User uploads CSV
+   React → POST /upload (with auth header)
+   
+2. FastAPI validates & stores
+   - Validates CSV (size, format)
+   - Generates job_id = UUID
+   - Uploads CSV to S3: uploads/{job_id}/input.csv
+   - Publishes message to SQS
+   - Returns: { job_id, estimated_seconds: 45 }
+   
+3. Worker picks up job
+   - Reads from SQS
+   - Downloads CSV from S3
+   - Processes in-memory (~30-90 seconds)
+   - Uploads results to S3: results/{job_id}/output.json
+   - Deletes message from SQS
+   
+4. React polls for results
+   - GET /results/{job_id} every 5 seconds
+   - FastAPI checks S3 for results/{job_id}/output.json
+   - If exists: returns status="completed" + data
+   - If not: returns status="processing"
+   
+5. Cleanup (async, overnight)
+   - S3 lifecycle policy deletes uploads/{job_id}/ (1 day old)
+   - S3 lifecycle policy deletes results/{job_id}/ (30 days old)
+```
+
+-----
+
+## Data Flow - Error Path
+
+```
+1. Job fails (e.g., invalid CSV format)
+   Worker → Exception during processing
+   
+2. SQS auto-retry
+   - Message visibility resets
+   - Worker retries (up to 3 times)
+   
+3. After 3 failures
+   - Message moved to DLQ
+   - CloudWatch alarm triggered
+   
+4. React polling
+   - GET /results/{job_id}
+   - FastAPI can't find results in S3
+   - Could return status="failed" + error reason (if logged)
+   
+5. Ops response
+   - Review DLQ message
+   - Fix root cause
+   - Requeue message for retry
+```
+
+-----
+
+## Authentication & Security
+
+- **API Gateway:** Require API key in request header
+  
+  ```
+  Authorization: Bearer <api_key>
+  ```
+- **HTTPS only:** All endpoints use TLS 1.2+
+- **CORS:** React domain whitelisted
+- **Rate limiting:**
+  - 1000 requests/hour per API key
+  - 100 requests/minute burst
+- **Credentials:**
+  - No AWS credentials in React code
+  - FastAPI uses IAM role (attached to Fargate task)
+  - SigV4 signing automatic via boto3
+
+-----
+
+## Monitoring & Alerts
+
+**CloudWatch Metrics:**
+
+- API latency (p50, p95, p99)
+- SQS queue depth
+- SQS message age
+- Worker task CPU/memory
+- S3 upload/download latency
+- Job completion rate
+
+**Alarms:**
+
+- Queue depth > 50 (scale up workers)
+- DLQ messages > 0 (job failures)
+- Worker task crashes
+- API error rate > 5%
+
+-----
+
+## Cost Estimate (Rough, 1-100 concurrent users)
+
+|Component                       |Est. Monthly|
+|--------------------------------|------------|
+|API Gateway                     |$5-15       |
+|ECS Fargate (FastAPI, 2-5 tasks)|$20-40      |
+|ECS Fargate (Workers, 2-8 tasks)|$40-80      |
+|S3 (uploads + results)          |$2-5        |
+|SQS                             |<$1         |
+|CloudWatch                      |$5-10       |
+|**Total**                       |**~$70-150**|
+
+-----
+
+## Deployment Checklist
+
+- [ ] Create S3 buckets (uploads, results)
+- [ ] Create SQS queue + DLQ
+- [ ] Create IAM roles (FastAPI, Workers)
+- [ ] Build & push FastAPI Docker image to ECR
+- [ ] Build & push Worker Docker image to ECR
+- [ ] Create ECS cluster, task definitions, services
+- [ ] Configure auto-scaling policies
+- [ ] Set up API Gateway with auth
+- [ ] Configure S3 lifecycle policies
+- [ ] Set up CloudWatch alarms
+- [ ] Test happy path (upload → process → retrieve results)
+- [ ] Test error path (invalid CSV → DLQ)
+- [ ] Load test (100 concurrent uploads)
