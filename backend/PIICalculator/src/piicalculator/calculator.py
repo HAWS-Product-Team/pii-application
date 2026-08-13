@@ -20,7 +20,9 @@ def get_max_file_size():
     """Get max file size in MB from environment variable."""
     return int(os.environ.get("MAXCSVFILESIZE", 20))
 
-def pii_calculator(csv_path):
+def pii_calculator(csv_path, output_path):
+    print(f"Reading CSV from: {csv_path}")
+    
     max_size_mb = get_max_file_size()
     
     # Check file size if it's a local file
@@ -38,6 +40,8 @@ def pii_calculator(csv_path):
     except Exception as e:
         report_error(f"Error reading CSV: {e}")
 
+    print("Validating columns and parsing dates...")
+    
     # Validate columns
     required_columns = {"date", "item_description", "total_price", "category"}
     if not required_columns.issubset(df.columns):
@@ -87,6 +91,8 @@ def pii_calculator(csv_path):
     mask = (df['month'] >= period_start) & (df['month'] <= period_end)
     period_df = df[mask].copy()
     
+    print(f"Computing inflation for period: {period_start} to {period_end}")
+
     # All calendar months between start and end (inclusive)
     period_months = pd.period_range(start=period_start, end=period_end, freq='M')
     
@@ -166,4 +172,13 @@ def pii_calculator(csv_path):
         }
     }
     
-    print(json.dumps(result, indent=2))
+    print(f"Writing result to {output_path}...")
+    if output_path.startswith("s3://"):
+        import s3fs
+        fs = s3fs.S3FileSystem()
+        with fs.open(output_path, 'w') as f:
+            json.dump(result, f, indent=2)
+    else:
+        with open(output_path, 'w') as f:
+            json.dump(result, f, indent=2)
+    print("Done.")
