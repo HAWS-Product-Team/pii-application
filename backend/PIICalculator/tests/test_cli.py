@@ -7,20 +7,30 @@ def test_cli_no_args(capsys):
     with patch.object(sys, 'argv', ['pii-calculator']):
         with pytest.raises(SystemExit) as e:
             main()
-        assert e.value.code == 1
+        assert e.value.code == 2
     
     captured = capsys.readouterr()
-    assert "usage: pii-calculator" in captured.out
+    assert "usage: pii-calculator" in captured.err
 
-def test_cli_with_arg(mocker):
-    mock_calc = mocker.patch("piicalculator.cli.pii_calculator")
+def test_cli_missing_output_arg(capsys):
     with patch.object(sys, 'argv', ['pii-calculator', 'test.csv']):
+        with pytest.raises(SystemExit) as e:
+            main()
+        assert e.value.code == 2
+    
+    captured = capsys.readouterr()
+    assert "usage: pii-calculator" in captured.err
+    assert "the following arguments are required: output_path" in captured.err
+
+def test_cli_with_two_args(mocker):
+    mock_calc = mocker.patch("piicalculator.cli.pii_calculator")
+    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv', 'out.json']):
         main()
-    mock_calc.assert_called_once_with('test.csv')
+    mock_calc.assert_called_once_with('test.csv', 'out.json')
 
 def test_cli_unexpected_error(mocker, capsys):
     mocker.patch("piicalculator.cli.pii_calculator", side_effect=Exception("Boom"))
-    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv']):
+    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv', 'out.json']):
         with pytest.raises(SystemExit) as e:
             main()
         assert e.value.code == 1
@@ -30,7 +40,7 @@ def test_cli_unexpected_error(mocker, capsys):
 
 def test_cli_system_exit(mocker):
     mocker.patch("piicalculator.cli.pii_calculator", side_effect=SystemExit(1))
-    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv']):
+    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv', 'out.json']):
         with pytest.raises(SystemExit) as e:
             main()
         assert e.value.code == 1

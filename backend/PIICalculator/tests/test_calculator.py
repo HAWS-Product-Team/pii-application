@@ -22,7 +22,7 @@ def test_get_max_file_size_custom():
 
 def test_pii_calculator_file_not_found(capsys):
     with pytest.raises(SystemExit) as e:
-        pii_calculator("non_existent.csv")
+        pii_calculator("non_existent.csv", "out.json")
     
     captured = capsys.readouterr()
     assert "Local file does not exist" in captured.err
@@ -36,7 +36,7 @@ def test_pii_calculator_file_too_large(tmp_path, capsys):
     os.environ["MAXCSVFILESIZE"] = "1"
     try:
         with pytest.raises(SystemExit) as e:
-            pii_calculator(str(csv_file))
+            pii_calculator(str(csv_file), "out.json")
         
         captured = capsys.readouterr()
         assert "File size exceeds the maximum allowed limit of 1MB" in captured.err
@@ -49,7 +49,7 @@ def test_pii_calculator_missing_columns(tmp_path, capsys):
     create_sample_csv(csv_file, [{"date": "2024-01-01", "total_price": 100}])
     
     with pytest.raises(SystemExit) as e:
-        pii_calculator(str(csv_file))
+        pii_calculator(str(csv_file), "out.json")
     
     captured = capsys.readouterr()
     assert "Missing required columns" in captured.err
@@ -65,7 +65,7 @@ def test_pii_calculator_too_little_data(tmp_path, capsys):
     create_sample_csv(csv_file, rows)
     
     with pytest.raises(SystemExit) as e:
-        pii_calculator(str(csv_file))
+        pii_calculator(str(csv_file), "out.json")
     
     captured = capsys.readouterr()
     assert "There is too little data for computing inflation" in captured.err
@@ -94,10 +94,11 @@ def test_pii_calculator_valid_data(tmp_path, capsys):
             })
     create_sample_csv(csv_file, rows)
     
-    pii_calculator(str(csv_file))
+    output_file = tmp_path / "result.json"
+    pii_calculator(str(csv_file), str(output_file))
     
-    captured = capsys.readouterr()
-    result = json.loads(captured.out)
+    with open(output_file, 'r') as f:
+        result = json.load(f)
     
     assert result["schema_version"] == "1.0"
     assert "generatedAt" in result
@@ -119,7 +120,7 @@ def test_pii_calculator_not_contiguous(tmp_path, capsys):
     create_sample_csv(csv_file, rows)
     
     with pytest.raises(SystemExit) as e:
-        pii_calculator(str(csv_file))
+        pii_calculator(str(csv_file), "out.json")
     
     captured = capsys.readouterr()
     assert "There is too little data for computing inflation" in captured.err
@@ -136,7 +137,7 @@ def test_pii_calculator_invalid_date(tmp_path, capsys):
     create_sample_csv(csv_file, rows)
     
     with pytest.raises(SystemExit) as e:
-        pii_calculator(str(csv_file))
+        pii_calculator(str(csv_file), "out.json")
     
     captured = capsys.readouterr()
     assert "Error parsing dates" in captured.err
@@ -148,9 +149,10 @@ def test_pii_calculator_zero_total_spend(tmp_path, capsys):
          rows.append({"date": f"2024-{month:02d}-01", "item_description": "a", "total_price": 0.0, "category": "Housing"})
     create_sample_csv(csv_file, rows)
     
-    pii_calculator(str(csv_file))
-    captured = capsys.readouterr()
-    result = json.loads(captured.out)
+    output_file = tmp_path / "result.json"
+    pii_calculator(str(csv_file), str(output_file))
+    with open(output_file, 'r') as f:
+        result = json.load(f)
     assert result["summary"]["pii"] == 0.0
 
 def test_pii_calculator_insufficient_data_for_regression(tmp_path, capsys):
@@ -167,12 +169,13 @@ def test_pii_calculator_insufficient_data_for_regression(tmp_path, capsys):
     # In this period, only 2024-02 has spend > 0.
     create_sample_csv(csv_file, rows)
     
-    pii_calculator(str(csv_file))
-    captured = capsys.readouterr()
-    result = json.loads(captured.out)
+    output_file = tmp_path / "result.json"
+    pii_calculator(str(csv_file), str(output_file))
+    with open(output_file, 'r') as f:
+        result = json.load(f)
     assert result["summary"]["pii"] == 0.0
 
-def test_pii_calculator_s3_path(mocker, capsys):
+def test_pii_calculator_s3_path(mocker, capsys, tmp_path):
     # Mock pandas read_csv to avoid real S3 call
     mock_read = mocker.patch("pandas.read_csv")
     df = pd.DataFrame([
@@ -183,12 +186,12 @@ def test_pii_calculator_s3_path(mocker, capsys):
     ])
     mock_read.return_value = df
     
+    output_file = tmp_path / "out.json"
     # We just want to check if it passes the s3:// check and proceeds
-    pii_calculator("s3://bucket/file.csv")
+    pii_calculator("s3://bucket/file.csv", str(output_file))
     
     mock_read.assert_called_once_with("s3://bucket/file.csv")
-    captured = capsys.readouterr()
-    assert "schema_version" in captured.out
+    assert output_file.exists()
 
 def test_pii_calculator_read_csv_error(tmp_path, capsys):
     csv_file = tmp_path / "invalid.csv"
@@ -196,7 +199,7 @@ def test_pii_calculator_read_csv_error(tmp_path, capsys):
     # Actually, pandas might still read it, but let's try to trigger an error by passing a directory
     
     with pytest.raises(SystemExit) as e:
-        pii_calculator(str(tmp_path))
+        pii_calculator(str(tmp_path), "out.json")
     
     captured = capsys.readouterr()
     assert "Error reading CSV" in captured.err
@@ -207,11 +210,12 @@ def test_error_json_format(tmp_path, capsys):
     create_sample_csv(csv_file, [{"date": "2024-01-01", "item_description": "a", "total_price": 100, "category": "Housing"}])
     
     with pytest.raises(SystemExit):
-        pii_calculator(str(csv_file))
+        pii_calculator(str(csv_file), "out.json")
     
     captured = capsys.readouterr()
-    # stdout should contain the JSON error
-    error_json = json.loads(captured.out)
+    # stdout may contain progress messages, but the last line should be the JSON error
+    lines = captured.out.strip().split('\n')
+    error_json = json.loads(lines[-1])
     
     assert "generatedAt" in error_json
     assert "message" in error_json
@@ -235,9 +239,10 @@ def test_row_order_independence(tmp_path, capsys):
     csv_ordered = tmp_path / "ordered.csv"
     create_sample_csv(csv_ordered, rows)
     
-    pii_calculator(str(csv_ordered))
-    out_ordered = capsys.readouterr().out
-    res_ordered = json.loads(out_ordered)
+    out_ordered = tmp_path / "ordered.json"
+    pii_calculator(str(csv_ordered), str(out_ordered))
+    with open(out_ordered, 'r') as f:
+        res_ordered = json.load(f)
     
     # Shuffle rows
     import random
@@ -248,9 +253,10 @@ def test_row_order_independence(tmp_path, capsys):
     csv_shuffled = tmp_path / "shuffled.csv"
     create_sample_csv(csv_shuffled, shuffled_rows)
     
-    pii_calculator(str(csv_shuffled))
-    out_shuffled = capsys.readouterr().out
-    res_shuffled = json.loads(out_shuffled)
+    out_shuffled = tmp_path / "shuffled.json"
+    pii_calculator(str(csv_shuffled), str(out_shuffled))
+    with open(out_shuffled, 'r') as f:
+        res_shuffled = json.load(f)
     
     # pii should be the same
     assert res_ordered["summary"]["pii"] == res_shuffled["summary"]["pii"]
@@ -272,9 +278,10 @@ def test_missing_month_in_middle(tmp_path, capsys):
     csv_file = tmp_path / "missing_month.csv"
     create_sample_csv(csv_file, rows)
     
-    pii_calculator(str(csv_file))
-    captured = capsys.readouterr()
-    result = json.loads(captured.out)
+    out_file = tmp_path / "result.json"
+    pii_calculator(str(csv_file), str(out_file))
+    with open(out_file, 'r') as f:
+        result = json.load(f)
     
     # Period should be Feb to Sep
     assert result["period"]["start"] == "2024-02"
@@ -309,9 +316,10 @@ def test_all_categories_handled(tmp_path, capsys, mocker):
     # Inflation for Housing should be approx 12 * 100 * ln(1.05) = 1200 * 0.04879 = 58.548
     # Overall pii should be 58.548.
     
-    pii_calculator(str(csv_file))
-    captured = capsys.readouterr()
-    result = json.loads(captured.out)
+    out_file = tmp_path / "result.json"
+    pii_calculator(str(csv_file), str(out_file))
+    with open(out_file, 'r') as f:
+        result = json.load(f)
     
     import numpy as np
     expected_slope = np.log(1.05)
@@ -319,16 +327,31 @@ def test_all_categories_handled(tmp_path, capsys, mocker):
     
     assert result["summary"]["pii"] == expected_pii
 
-def test_file_size_override(tmp_path, capsys):
-    csv_file = tmp_path / "small.csv"
-    create_sample_csv(csv_file, [{"date": "2024-01-01", "item_description": "a", "total_price": 100, "category": "Housing"}])
+def test_pii_calculator_with_output_file(tmp_path, capsys):
+    csv_file = tmp_path / "input.csv"
+    rows = []
+    for month in range(1, 7):
+        rows.append({
+            "date": f"2024-{month:02d}-01",
+            "item_description": "a",
+            "total_price": 100.0,
+            "category": "Housing"
+        })
+    create_sample_csv(csv_file, rows)
     
-    # Set max size to 0 to trigger error even for small file
-    os.environ["MAXCSVFILESIZE"] = "0"
-    try:
-        with pytest.raises(SystemExit):
-            pii_calculator(str(csv_file))
-        captured = capsys.readouterr()
-        assert "File size exceeds the maximum allowed limit of 0MB" in captured.err
-    finally:
-        del os.environ["MAXCSVFILESIZE"]
+    output_file = tmp_path / "output.json"
+    
+    pii_calculator(str(csv_file), str(output_file))
+    
+    # Check stdout for progress
+    captured = capsys.readouterr()
+    assert "Writing result to" in captured.out
+    assert "Done." in captured.out
+    # JSON should NOT be in stdout
+    assert '"schema_version": "1.0"' not in captured.out
+    
+    # Check output file content
+    assert output_file.exists()
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+    assert result["summary"]["pii"] == 0.0
