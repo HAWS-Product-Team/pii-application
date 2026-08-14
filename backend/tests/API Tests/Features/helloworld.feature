@@ -3,7 +3,7 @@ Feature: Invoices API on AWS API Gateway
   Background:
     * url 'https://5m782q7f45.execute-api.us-east-1.amazonaws.com/dev/'
 
-  Scenario: Get welcome page
+  Scenario: Get API root
     Given path '/'
     When method get
     Then status 200
