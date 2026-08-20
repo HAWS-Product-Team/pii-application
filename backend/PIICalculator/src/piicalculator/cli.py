@@ -15,12 +15,12 @@ def main():
     try:
         pii_calculator(args.csv_path, args.output_path)
     except PIICalculatorError as e:
-        report_error(str(e))
+        report_error(str(e), output_path=args.output_path)
     except SystemExit:
         # Already handled
         raise
     except Exception as e:
-        report_error(f"An unexpected error occurred: {e}")
+        report_error(f"An unexpected error occurred: {e}", output_path=args.output_path)
 
 if __name__ == "__main__":
     main()

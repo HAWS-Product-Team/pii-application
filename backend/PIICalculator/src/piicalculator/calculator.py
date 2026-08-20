@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 from datetime import datetime, timezone
-from piicalculator.errors import PIICalculatorError, get_timestamp
+from piicalculator.errors import PIICalculatorError, get_timestamp, write_json
 
 CATEGORIES = [
     "Housing",
@@ -174,14 +174,7 @@ def pii_calculator(csv_path, output_path):
     
     print(f"Writing result to {output_path}...")
     try:
-        if output_path.startswith("s3://"):
-            import s3fs
-            fs = s3fs.S3FileSystem()
-            with fs.open(output_path, 'w') as f:
-                json.dump(result, f, indent=2)
-        else:
-            with open(output_path, 'w') as f:
-                json.dump(result, f, indent=2)
+        write_json(result, output_path)
     except Exception as e:
         raise PIICalculatorError(f"Error writing output JSON: {e}")
     print("Done.")

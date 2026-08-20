@@ -1,7 +1,6 @@
-import re
 import logging
 from piicalculator.calculator import pii_calculator
-from piicalculator.errors import PIICalculatorError
+from piicalculator.errors import PIICalculatorError, get_error_data, write_json
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -57,9 +56,19 @@ def handler(event, context):
         pii_calculator(input_uri, output_uri)
     except PIICalculatorError as e:
         logger.error(f"PIICalculation failed: {e}")
+        try:
+            error_data = get_error_data(str(e))
+            write_json(error_data, output_uri)
+        except Exception as write_err:
+            logger.error(f"Failed to write error report to {output_uri}: {write_err}")
         raise
     except Exception as e:
         logger.error(f"An unexpected error occurred: {e}")
+        try:
+            error_data = get_error_data(f"An unexpected error occurred: {e}")
+            write_json(error_data, output_uri)
+        except Exception as write_err:
+            logger.error(f"Failed to write error report to {output_uri}: {write_err}")
         raise
         
     return {
