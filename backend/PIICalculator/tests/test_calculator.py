@@ -3,6 +3,10 @@ import os
 import pandas as pd
 import json
 from piicalculator.calculator import get_max_file_size, pii_calculator, CATEGORIES
+from piicalculator.errors import PIICalculatorError
+from piicalculator.cli import main
+from unittest.mock import patch
+import sys
 
 def create_sample_csv(path, rows):
     df = pd.DataFrame(rows)
@@ -21,12 +25,10 @@ def test_get_max_file_size_custom():
         del os.environ["MAXCSVFILESIZE"]
 
 def test_pii_calculator_file_not_found(capsys):
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(PIICalculatorError) as e:
         pii_calculator("non_existent.csv", "out.json")
     
-    captured = capsys.readouterr()
-    assert "Local file does not exist" in captured.err
-    assert e.value.code == 1
+    assert "Local file does not exist" in str(e.value)
 
 def test_pii_calculator_file_too_large(tmp_path, capsys):
     csv_file = tmp_path / "large.csv"
@@ -35,12 +37,10 @@ def test_pii_calculator_file_too_large(tmp_path, capsys):
     
     os.environ["MAXCSVFILESIZE"] = "1"
     try:
-        with pytest.raises(SystemExit) as e:
+        with pytest.raises(PIICalculatorError) as e:
             pii_calculator(str(csv_file), "out.json")
         
-        captured = capsys.readouterr()
-        assert "File size exceeds the maximum allowed limit of 1MB" in captured.err
-        assert e.value.code == 1
+        assert "File size exceeds the maximum allowed limit of 1MB" in str(e.value)
     finally:
         del os.environ["MAXCSVFILESIZE"]
 
@@ -48,12 +48,10 @@ def test_pii_calculator_missing_columns(tmp_path, capsys):
     csv_file = tmp_path / "missing_cols.csv"
     create_sample_csv(csv_file, [{"date": "2024-01-01", "total_price": 100}])
     
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(PIICalculatorError) as e:
         pii_calculator(str(csv_file), "out.json")
     
-    captured = capsys.readouterr()
-    assert "Missing required columns" in captured.err
-    assert e.value.code == 1
+    assert "Missing required columns" in str(e.value)
 
 def test_pii_calculator_too_little_data(tmp_path, capsys):
     csv_file = tmp_path / "little_data.csv"
@@ -64,12 +62,10 @@ def test_pii_calculator_too_little_data(tmp_path, capsys):
     ]
     create_sample_csv(csv_file, rows)
     
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(PIICalculatorError) as e:
         pii_calculator(str(csv_file), "out.json")
     
-    captured = capsys.readouterr()
-    assert "There is too little data for computing inflation" in captured.err
-    assert e.value.code == 1
+    assert "There is too little data for computing inflation" in str(e.value)
 
 def test_pii_calculator_valid_data(tmp_path, capsys):
     csv_file = tmp_path / "valid.csv"
@@ -119,12 +115,10 @@ def test_pii_calculator_not_contiguous(tmp_path, capsys):
     ]
     create_sample_csv(csv_file, rows)
     
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(PIICalculatorError) as e:
         pii_calculator(str(csv_file), "out.json")
     
-    captured = capsys.readouterr()
-    assert "There is too little data for computing inflation" in captured.err
-    assert e.value.code == 1
+    assert "There is too little data for computing inflation" in str(e.value)
 
 def test_pii_calculator_invalid_date(tmp_path, capsys):
     csv_file = tmp_path / "invalid_date.csv"
@@ -136,11 +130,10 @@ def test_pii_calculator_invalid_date(tmp_path, capsys):
     ]
     create_sample_csv(csv_file, rows)
     
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(PIICalculatorError) as e:
         pii_calculator(str(csv_file), "out.json")
     
-    captured = capsys.readouterr()
-    assert "Error parsing dates" in captured.err
+    assert "Error parsing dates" in str(e.value)
 
 def test_pii_calculator_zero_total_spend(tmp_path, capsys):
     csv_file = tmp_path / "zero_spend.csv"
@@ -198,19 +191,19 @@ def test_pii_calculator_read_csv_error(tmp_path, capsys):
     csv_file.write_text("invalid csv content")
     # Actually, pandas might still read it, but let's try to trigger an error by passing a directory
     
-    with pytest.raises(SystemExit) as e:
+    with pytest.raises(PIICalculatorError) as e:
         pii_calculator(str(tmp_path), "out.json")
     
-    captured = capsys.readouterr()
-    assert "Error reading CSV" in captured.err
+    assert "Error reading CSV" in str(e.value)
 
 def test_error_json_format(tmp_path, capsys):
     # Trigger a "too little data" error
     csv_file = tmp_path / "too_little.csv"
     create_sample_csv(csv_file, [{"date": "2024-01-01", "item_description": "a", "total_price": 100, "category": "Housing"}])
     
-    with pytest.raises(SystemExit):
-        pii_calculator(str(csv_file), "out.json")
+    with patch.object(sys, 'argv', ['pii-calculator', str(csv_file), "out.json"]):
+        with pytest.raises(SystemExit):
+            main()
     
     captured = capsys.readouterr()
     # stdout may contain progress messages, but the last line should be the JSON error
