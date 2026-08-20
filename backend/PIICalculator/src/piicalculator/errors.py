@@ -2,6 +2,10 @@ import sys
 import json
 from datetime import datetime, timezone
 
+class PIICalculatorError(Exception):
+    """Base class for PII Calculator errors."""
+    pass
+
 def get_timestamp():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 

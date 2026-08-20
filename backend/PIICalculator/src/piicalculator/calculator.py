@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import json
 from datetime import datetime, timezone
-from piicalculator.errors import report_error, get_timestamp
+from piicalculator.errors import PIICalculatorError, get_timestamp
 
 CATEGORIES = [
     "Housing",
@@ -28,17 +28,17 @@ def pii_calculator(csv_path, output_path):
     # Check file size if it's a local file
     if not csv_path.startswith("s3://"):
         if not os.path.exists(csv_path):
-            report_error(f"Local file does not exist: {csv_path}")
+            raise PIICalculatorError(f"Local file does not exist: {csv_path}")
         
         file_size_mb = os.path.getsize(csv_path) / (1024 * 1024)
         if file_size_mb > max_size_mb:
-            report_error(f"File size exceeds the maximum allowed limit of {max_size_mb}MB.")
+            raise PIICalculatorError(f"File size exceeds the maximum allowed limit of {max_size_mb}MB.")
 
     try:
         # pandas can read from S3 if s3fs is installed
         df = pd.read_csv(csv_path)
     except Exception as e:
-        report_error(f"Error reading CSV: {e}")
+        raise PIICalculatorError(f"Error reading CSV: {e}")
 
     print("Validating columns and parsing dates...")
     
@@ -46,19 +46,19 @@ def pii_calculator(csv_path, output_path):
     required_columns = {"date", "item_description", "total_price", "category"}
     if not required_columns.issubset(df.columns):
         missing = required_columns - set(df.columns)
-        report_error(f"Missing required columns: {', '.join(missing)}")
+        raise PIICalculatorError(f"Missing required columns: {', '.join(missing)}")
 
     # Parse dates
     try:
         df['date'] = pd.to_datetime(df['date'])
         df['month'] = df['date'].dt.to_period('M')
     except Exception as e:
-        report_error(f"Error parsing dates: {e}")
+        raise PIICalculatorError(f"Error parsing dates: {e}")
 
     # Sort and find period
     all_months = sorted(df['month'].unique())
     if len(all_months) < 4:
-         report_error("There is too little data for computing inflation.  Please upload a at least four months of data.")
+         raise PIICalculatorError("There is too little data for computing inflation.  Please upload a at least four months of data.")
 
     # Determine start and end months (excluding first and last)
     period_start = all_months[1]
@@ -85,7 +85,7 @@ def pii_calculator(csv_path, output_path):
             current_contiguous = 0
             
     if max_contiguous < 4:
-        report_error("There is too little data for computing inflation.  Please upload a at least four months of data.")
+        raise PIICalculatorError("There is too little data for computing inflation.  Please upload a at least four months of data.")
 
     # Filter data to the period (excluding first and last month)
     mask = (df['month'] >= period_start) & (df['month'] <= period_end)
@@ -173,12 +173,15 @@ def pii_calculator(csv_path, output_path):
     }
     
     print(f"Writing result to {output_path}...")
-    if output_path.startswith("s3://"):
-        import s3fs
-        fs = s3fs.S3FileSystem()
-        with fs.open(output_path, 'w') as f:
-            json.dump(result, f, indent=2)
-    else:
-        with open(output_path, 'w') as f:
-            json.dump(result, f, indent=2)
+    try:
+        if output_path.startswith("s3://"):
+            import s3fs
+            fs = s3fs.S3FileSystem()
+            with fs.open(output_path, 'w') as f:
+                json.dump(result, f, indent=2)
+        else:
+            with open(output_path, 'w') as f:
+                json.dump(result, f, indent=2)
+    except Exception as e:
+        raise PIICalculatorError(f"Error writing output JSON: {e}")
     print("Done.")

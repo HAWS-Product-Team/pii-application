@@ -1,7 +1,6 @@
-import sys
 import argparse
 from piicalculator.calculator import pii_calculator
-from piicalculator.errors import report_error
+from piicalculator.errors import report_error, PIICalculatorError
 
 def main():
     parser = argparse.ArgumentParser(description="PII Calculator")
@@ -15,8 +14,10 @@ def main():
     
     try:
         pii_calculator(args.csv_path, args.output_path)
+    except PIICalculatorError as e:
+        report_error(str(e))
     except SystemExit:
-        # Already handled by report_error
+        # Already handled
         raise
     except Exception as e:
         report_error(f"An unexpected error occurred: {e}")

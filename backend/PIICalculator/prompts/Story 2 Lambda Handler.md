@@ -21,7 +21,8 @@ The Lambda function should be invoked by Step Functions after the classifier Bat
 
 The PIICalculation Lambda should receive an event containing S3 artifact locations:
 ```json 
-{ "ticket": "123456789", "input-s3-uri": "s3://pii-work/jobs/123456789/classified/classified.csv", "output-s3-uri": "s3://pii-output/jobs/123456789/pii-report.json" }
+{ "input-s3-uri": "s3://pii-data-pipeline-input/123456789/classified.csv", 
+  "output-s3-uri": "s3://pii-data-pipeline-output/123456789/pii-report.json" }
 ``` 
 
 The Lambda should:
@@ -45,7 +46,7 @@ The Lambda output JSON report should be written to:
 
 The Lambda handler should accept:
 ```json 
-{ "ticket": "123456789", "input-s3-uri": "s3://pii-work/jobs/123456789/classified/classified.csv",
+{ "input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/classified.csv",
   "output-s3-uri": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json" }
 ``` 
 
@@ -53,12 +54,12 @@ The Lambda handler should accept:
 
 On success, the Lambda should return:
 ```json 
-{ "jobId": "123456789", "status": "SUCCEEDED", "input-s3-uri": "s3://pii-work/123456789/classified.csv", "output-s3-uri": "s3://pii-output/123456789/pii-report.json" }
+{ "ticket": "123456789", "status": "SUCCEEDED",  
+  "output-s3-uri": "s3://pii-output/123456789/pii-report.json" }
 ``` 
+Ticket number is the same as the number in the path after the bucket name.
 
 On failure, the Lambda should raise an exception or return an error in a way that causes Step Functions to mark the `CalculatePII` state as failed.
-
-# XXX WIP
 
 ## Application Scope
 
@@ -75,27 +76,23 @@ The implementation should include:
 - Documentation for building/deploying the Lambda artifact.
 
 Suggested handler shape:
-```
-
-text piicalculator.lambda_handler.handler``` 
+```piicalculator.lambda_handler.handler``` 
 
 Suggested project location:
-```
-
-text backend/PIICalculator/src/piicalculator/lambda_handler.py``` 
+```backend/PIICalculator/src/piicalculator/lambda_handler.py``` 
 
 ## Required Behavior
 
 The Lambda handler must:
 
-- Require `jobId`.
-- Require `inputCsv`.
-- Require `outputJson`.
-- Validate that `inputCsv` is an S3 URI.
-- Validate that `outputJson` is an S3 URI.
-- Read the classified CSV from `inputCsv`.
+- Require `input-s3-uri`.
+- Require `output-s3-uri`.
+- Validate that `input-s3-uri` is an S3 URI.
+- Validate that `output-s3-uri` is an S3 URI.
+- Validate that the ticket number (in the path after the bucket name) is the same for input-s3-uri and output-s3-uri
+- Read the classified CSV from `input-s3-uri`.
 - Generate the PIICalculation JSON report.
-- Write the JSON report to `outputJson`.
+- Write the JSON report to `output-s3-uri`.
 - Return a success response after the JSON report is written.
 - Raise a useful error on malformed input.
 - Raise a useful error when the input CSV cannot be read.
@@ -108,11 +105,9 @@ The Lambda handler must:
 The existing CLI behavior may remain available for local development.
 
 For example:
-```
+```pii-calculator path/to/classified.csv path/to/output.json``` 
 
-bash pii-calculator path/to/classified.csv``` 
-
-may continue to write the JSON report to stdout.
+will work when executed locally.
 
 The Lambda handler should be the production integration point for Step Functions.
 
@@ -134,69 +129,25 @@ The Lambda must be able to:
 
 ## Packaging Approach
 
-The PIICalculation Lambda may be packaged as either:
+The PIICalculation Lambda packaged as a ZIP deployment package with dependencies.
 
-1. A ZIP deployment package with dependencies, or
-2. A Lambda container image.
-
-Given that the workload is lightweight, either approach is acceptable. The implementation should choose the simpler and more maintainable option for the project.
-
-If native dependencies such as `pandas` and `numpy` make ZIP packaging difficult, prefer a Lambda container image.
-
-## Lambda Container Image Option
-
-If using a Lambda container image, add a Dockerfile suitable for Lambda.
-
-Suggested location:
-```
-
-text backend/PIICalculator/Dockerfile.lambda``` 
-
-The Lambda container image should:
-
-- Use a Python 3.12 Lambda-compatible base image.
-- Install production dependencies only.
-- Use `uv` for dependency management where practical.
-- Copy the PIICalculation source.
-- Set the Lambda command to the handler.
-- Avoid copying tests, local virtual environments, coverage files, or local development artifacts.
-
-Suggested container command:
-```
-
-text piicalculator.lambda_handler.handler``` 
-
-## ZIP Package Option
-
-If using ZIP packaging, add build documentation or a build script that:
-
+Add build documentation or a build script that:
 - Installs production dependencies into a build directory.
 - Copies PIICalculation source into the build directory.
 - Produces a ZIP artifact suitable for Lambda deployment.
 - Uses Python 3.12.
 - Uses `uv` for dependency management where practical.
 
-## `.dockerignore` Requirements, If Using Lambda Container Image
-
-Add or update:
-```
-
-text backend/PIICalculator/.dockerignore``` 
-
-The Docker build context should exclude:
-```
-
-text .venv pycache .pytest_cache .coverage htmlcov tests *.pyc *.pyo *.pyd .env .DS_Store``` 
-
 ## Testing Requirements
 
 Add or update tests to verify:
 
 - The Lambda handler accepts a valid event.
-- The Lambda handler rejects an event missing `jobId`.
-- The Lambda handler rejects an event missing `inputCsv`.
-- The Lambda handler rejects an event missing `outputJson`.
+- The Lambda handler rejects an event missing `input-s3-uri`.
+- The Lambda handler rejects an event missing `output-s3-uri`.
 - The Lambda handler rejects malformed S3 URIs.
+- The Lambda handler validates that the ticket number (in the path after the bucket name) is the same 
+for input-s3-uri and output-s3-uri
 - The Lambda handler reads classified CSV input from S3.
 - The Lambda handler writes JSON output to S3.
 - The Lambda handler returns the expected success response.
@@ -212,31 +163,23 @@ S3 interactions should be mocked or faked in unit tests.
 A developer should be able to run the Lambda handler locally with a representative event.
 
 Example event:
-```
-
-json { "jobId": "local-test-001", "inputCsv": "s3://pii-work/jobs/local-test-001/classified/classified.csv", "outputJson": "s3://pii-output/jobs/local-test-001/pii-report.json" }``` 
-
-If using Lambda container image packaging, a developer should be able to build the image locally.
-
-Example:
-```
-
-bash cd backend/PIICalculator docker build -f Dockerfile.lambda -t pii-calculator-lambda:latest .``` 
+```json 
+{ "input-s3-uri": "s3://pii-data-pipeline-input/1234/classified.csv", "output-s3-uri": "s3://pii-data-pipeline-input/1234/pii-report.json" }
+``` 
 
 ## Acceptance Criteria
 
 - A PIICalculation Lambda handler exists.
-- The handler accepts `jobId`, `inputCsv`, and `outputJson`.
+- The handler accepts `input-s3-uri`, and `output-s3-uri`.
 - The handler validates required event fields.
 - The handler validates S3 URI format for input and output.
 - The handler reads the classified CSV from S3.
 - The handler computes the PIICalculation report.
 - The handler writes the JSON report to the specified S3 output URI.
 - The handler returns a success response containing:
-  - `jobId`
+  - `ticket`
   - `status`
-  - `inputCsv`
-  - `outputJson`
+  - `output-s3-uri`
 - The handler raises an error for invalid input events.
 - The handler raises an error for missing or unreadable input CSV.
 - The handler raises an error for invalid CSV contents.
@@ -266,4 +209,3 @@ bash cd backend/PIICalculator docker build -f Dockerfile.lambda -t pii-calculato
 This story should be implemented in the application repository.
 
 The infrastructure repository should consume the Lambda handler package or Lambda container image produced by this story.
-
