@@ -28,15 +28,34 @@ def test_cli_with_two_args(mocker):
         main()
     mock_calc.assert_called_once_with('test.csv', 'out.json')
 
-def test_cli_unexpected_error(mocker, capsys):
+def test_cli_unexpected_error(mocker, capsys, tmp_path):
     mocker.patch("piicalculator.cli.pii_calculator", side_effect=Exception("Boom"))
-    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv', 'out.json']):
+    output_file = tmp_path / "error.json"
+    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv', str(output_file)]):
         with pytest.raises(SystemExit) as e:
             main()
         assert e.value.code == 1
     
     captured = capsys.readouterr()
     assert "An unexpected error occurred: Boom" in captured.err
+    assert output_file.exists()
+
+def test_cli_calculator_error(mocker, capsys, tmp_path):
+    from piicalculator.errors import PIICalculatorError
+    mocker.patch("piicalculator.cli.pii_calculator", side_effect=PIICalculatorError("Data too small"))
+    output_file = tmp_path / "error.json"
+    with patch.object(sys, 'argv', ['pii-calculator', 'test.csv', str(output_file)]):
+        with pytest.raises(SystemExit) as e:
+            main()
+        assert e.value.code == 1
+    
+    captured = capsys.readouterr()
+    assert "Data too small" in captured.err
+    assert output_file.exists()
+    import json
+    with open(output_file, 'r') as f:
+        data = json.load(f)
+    assert data["message"] == "Data too small"
 
 def test_cli_system_exit(mocker):
     mocker.patch("piicalculator.cli.pii_calculator", side_effect=SystemExit(1))
