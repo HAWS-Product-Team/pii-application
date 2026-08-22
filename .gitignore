@@ -5,6 +5,7 @@
 *.iml
 .idea/misc.xml
 .idea/**
+.idea/modules.xml
 
 # If you want to share some IDE settings, you can un-ignore selectively:
 # !.idea/codeStyles/
@@ -21,3 +22,5 @@ requirements.txt
 .ds_store
 .coverage
 .DS_Store
+
+*.zip

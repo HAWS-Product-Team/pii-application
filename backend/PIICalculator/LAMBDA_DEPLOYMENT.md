@@ -8,6 +8,7 @@ The PIICalculator is designed to run as a lightweight Lambda function in the sta
 
 ## Prerequisites
 
+- docker
 - Python 3.12
 - [uv](https://github.com/astral-sh/uv) for dependency management
 - `zip` utility
