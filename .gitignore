@@ -20,3 +20,4 @@ requirements.txt
 **/karate-reports/
 .ds_store
 .coverage
+.DS_Store
