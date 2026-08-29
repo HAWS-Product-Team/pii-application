@@ -32,7 +32,7 @@ Adjust `cu121` to match your CUDA version.
 ## CLI usage
 Use the CLI to see the extended help and usage information.
 ```bash
-uv synch
+uv sync
 uv run inflation-classifier -h
 ```
 
@@ -68,10 +68,12 @@ Set environment variable `INFERENCE_DEVICE=mps` to use Metal.
   - `INFERENCE_DEVICE=mps uv run inflation-classifier s3://bucket/input.csv s3://bucket/output.csv`
 
 ## Docker usage
+You can run the container locally for testing.
 
 `docker run --rm -e AWS_PROFILE=pii-infrastructure -v "$HOME/.aws:/root/.aws:ro" inflation-classifier:latest s3://bucket/input.csv s3://bucket/output.csv`
 
 ## AWS Batch
+You can launch a batch process from your local environment.  
 Create a job and pass in a parameter for the input S3 bucket.  
 
 ```bash

@@ -16,23 +16,6 @@
 └────────────────────────────────────┬────────────────────────────────────────┘
                                      │
                                      ▼
-                    ┌──────────────────────────────────┐
-                    │        SQS Standard Queue        │
-                    │                                  │
-                    │        Retention: 14d            │
-                    │        DLQ enabled               │
-                    │        (max retries: 3)          │
-                    └────────────────┬─────────────────┘
-                                     │
-                          ┌──────────┴─────────────┐
-                          │                        │
-                          ▼                        ▼
-        ┌──────────────────────────────────┐  ┌──────────────────────────────────┐
-        │  Message triggers orchestration  │  │   SQS Dead-Letter Queue          │
-        │                                  │  │   (Failed job messages)          │
-        └────────────────┬─────────────────┘  │   (Retained for debugging)       │
-                         │                    └──────────────────────────────────┘
-                         ▼
         ┌──────────────────────────────────────────────────────────┐
         │  AWS STEP FUNCTIONS - Pipeline Orchestrator              │
         │  ┌────────────────────────────────────────────────────┐  │
@@ -191,36 +174,6 @@
 
 -----
 
-### 4. SQS Standard Queue
-
-- **Name:** `personal-inflation-jobs`
-- **Configuration:**
-  - Message retention: 14 days
-  - Visibility timeout: 5 minutes
-  - Dead-letter queue: enabled (max receive count: 3)
-  - Max message size: 262 KB
-- **Message format:**
-  
-  ```json
-  {
-    "job_id": "abc123",
-    "csv_s3_location": "s3://bucket-name/uploads/abc123/input.csv",
-    "user_id": "user-456",
-    "timestamp": "2024-02-01T10:30:00Z"
-  }
-  ```
-
------
-
-### 5. SQS Dead-Letter Queue
-
-- **Name:** `personal-inflation-jobs-dlq`
-- **Purpose:** Capture failed jobs after 3 retries
-- **Monitoring:** CloudWatch alarm when messages appear
-- **Manual intervention:** Ops team reviews, fixes root cause, requeues
-
------
-
 ### 6. ECS Fargate - Worker Tasks
 
 - **Role:** Process jobs, compute inflation
@@ -330,25 +283,19 @@
 1. User uploads CSV
    React → POST /upload (with auth header)
    
-2. FastAPI validates & stores
-   - Validates CSV (size, format)
+2. API Gateway facilitates
    - Generates job_id = UUID
    - Uploads CSV to S3: uploads/{job_id}/input.csv
-   - Publishes message to SQS
+   - passes event to Step Functions state machine
    - Returns: { job_id, estimated_seconds: 45 }
    
-3. Worker picks up job
-   - Reads from SQS
-   - Downloads CSV from S3
-   - Processes in-memory (~30-90 seconds)
-   - Uploads results to S3: results/{job_id}/output.json
-   - Deletes message from SQS
+3. Step Functions
+   - Executes data pipeline
    
 4. React polls for results
    - GET /results/{job_id} every 5 seconds
-   - FastAPI checks S3 for results/{job_id}/output.json
-   - If exists: returns status="completed" + data
-   - If not: returns status="processing"
+   - API Gateway responds with job status
+   - If states is job finished, then React GETs the report as a hypermedia
    
 5. Cleanup (async, overnight)
    - S3 lifecycle policy deletes uploads/{job_id}/ (1 day old)
@@ -362,23 +309,13 @@
 ```
 1. Job fails (e.g., invalid CSV format)
    Worker → Exception during processing
-   
-2. SQS auto-retry
-   - Message visibility resets
-   - Worker retries (up to 3 times)
-   
-3. After 3 failures
-   - Message moved to DLQ
-   - CloudWatch alarm triggered
-   
-4. React polling
+      
+2. React polling
    - GET /results/{job_id}
-   - FastAPI can't find results in S3
+   - API Gateway can't find results in S3
    - Could return status="failed" + error reason (if logged)
    
-5. Ops response
-   - Review DLQ message
-   - Fix root cause
+3. Pipeline response
    - Requeue message for retry
 ```
 
@@ -416,8 +353,6 @@
 
 **Alarms:**
 
-- Queue depth > 50 (scale up workers)
-- DLQ messages > 0 (job failures)
 - Worker task crashes
 - API error rate > 5%
 
@@ -428,7 +363,6 @@
 |Component                       |Est. Monthly|
 |--------------------------------|------------|
 |API Gateway                     |$5-15       |
-|ECS Fargate (FastAPI, 2-5 tasks)|$20-40      |
 |ECS Fargate (Workers, 2-8 tasks)|$40-80      |
 |S3 (uploads + results)          |$2-5        |
 |SQS                             |<$1         |
@@ -440,9 +374,7 @@
 ## Deployment Checklist
 
 - [ ] Create S3 buckets (uploads, results)
-- [ ] Create SQS queue + DLQ
 - [ ] Create IAM roles (FastAPI, Workers)
-- [ ] Build & push FastAPI Docker image to ECR
 - [ ] Build & push Worker Docker image to ECR
 - [ ] Create ECS cluster, task definitions, services
 - [ ] Configure auto-scaling policies
