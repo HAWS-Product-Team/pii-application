@@ -1,0 +1,35 @@
+[project]
+name = "pdf2csv"
+version = "0.1.0"
+description = "PDF Spending Statements to CSV Converter"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.0.0",
+    "pypdf>=5.0.0",
+    "s3fs>=2024.0.0",
+]
+
+[project.scripts]
+pdf2csv = "pdf2csv.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-mock>=3.14.0",
+    "ruff>=0.5.0",
+]
