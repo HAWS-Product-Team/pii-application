@@ -2,13 +2,13 @@
 <module type="JAVA_MODULE" version="4">
   <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
-    <content url="file://$MODULE_DIR$/backend/data-tools/apps/anonymizer">
-      <sourceFolder url="file://$MODULE_DIR$/backend/data-tools/apps/anonymizer/src" />
-      <excludeFolder url="file://$MODULE_DIR$/backend/data-tools/apps/anonymizer/.venv" />
+    <content url="file://$MODULE_DIR$/backend/data-tools/anonymizer">
+      <sourceFolder url="file://$MODULE_DIR$/backend/data-tools/anonymizer/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/backend/data-tools/anonymizer/.venv" />
     </content>
     <content url="file://$MODULE_DIR$/backend/data-tools/apps/normalizer" />
     <content url="file://$MODULE_DIR$/backend/inflation-classifier">
-      <sourceFolder url="file://$MODULE_DIR$/backend/inflation-classifier/src" />
+      <sourceFolder url="file://$MODULE_DIR$/backend/inflation-classifier/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/backend/inflation-classifier/.venv" />
     </content>
     <orderEntry type="jdk" jdkName="uv (inflation-classifier)" jdkType="Python SDK" />
