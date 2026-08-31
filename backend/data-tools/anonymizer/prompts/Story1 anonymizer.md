@@ -4,9 +4,6 @@
 Create a Python script to anonymize test data attached to this chat. I want to prevent Personal Identifiable 
 Information (personal identifying information) from being exposed in the public repository.
 
-The core implementation must live in:
-`backend/tests/data-tools/apps/anonymizer/anonymizer.py`
-
 The tool must preserve `.pdf` validity so existing tests can still load and parse the HTML content.
 
 ## Non-goals (Scope Boundaries)
@@ -53,6 +50,10 @@ Exit codes:
 - **Libraries**: Use standard libraries where possible (e.g., `plistlib` for handling binary plists).
 - **Integrity**: The resulting `.pdf` file must remain a valid, readable file so 
 that existing tests can still parse the PDF content.
+
+## Design
+- use SOLID coding principles to ensure maintainability and extensibility of the codebase.
+- use argparse to parse command-line arguments.
 
 ## Tests
 Write unit tests for 'anonymizer.py' that cover:
