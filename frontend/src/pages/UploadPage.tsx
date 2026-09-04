@@ -18,16 +18,14 @@ export default function UploadPage() {
         // see if the results is ready
         // have the user navigate to the results
     };
-
+url /
     return (
             <div className="w-screen mx-auto py-10">
                 <h1 className="text-4xl">
-                    Find Your Inflation <br/> with ease
+                    // content comes from API.
                 </h1>
                 <p className="max-w-2xl mx-auto py-10">
-                    Upload your CSV of past purchases to
-                    calculate your personal inflation rate, 
-                    then download the updated file with your results.
+// content comes from API
                 </p>   
                 <div className="w-1/2 mx-auto border-4 rounded-lg border-dashed border-[#00C3D0] p-4">
                     <div className="flex flex-col justify-center">
@@ -35,14 +33,14 @@ export default function UploadPage() {
                             <div className='flex space-x-4'>
                                 <img src={importLogo} alt='inbox' height={50} width={50}/>
                                 <span className='text-2xl font-bold py-4'>
-                                    Import/Export Data
+// may come from API or come from the protocol of the API                                    Import/Export Data
                                 </span>
                             </div>
                             <button onClick={handleImport} className='bg-[#33B4A8] text-2xl rounded-xl text-white font-bold px-20'>
-                                Import CSV
+//  will come from API                               Import CSV
                             </button>
                             <button onClick={handleExport} className='bg-[#33B4A8] text-2xl rounded-xl text-white font-bold px-20'>
-                                Export CSV
+// will come API                                Export CSV
                             </button>
                         </div>
                         <div className='bg-white bg-opacity-35 flex flex-col max-w-7xl border-4 rounded-lg border-dashed border-[#00C3D0] p-4 my-10'>
@@ -54,7 +52,7 @@ export default function UploadPage() {
                     </div>
                 </div>
                 <button onClick={handleCalculate} className='inline-block my-10 bg-[#33B4A8] text-2xl rounded-xl text-white font-bold px-20 py-4'>
-                    Calculate my results
+// will come from the API                    Calculate my results
                 </button>
             </div>
     )

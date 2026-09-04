@@ -25,3 +25,5 @@ requirements.txt
 
 *.zip
 .venv/
+build_lambda/
+build/
