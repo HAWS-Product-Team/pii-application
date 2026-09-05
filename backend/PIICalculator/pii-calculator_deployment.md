@@ -120,14 +120,15 @@ Lambda and successfully generates the PII report.  By examining the terraform pl
 parameters needed by the various tasks.  Each unique parameter will need to be passed to the state machine via a 
 message.  
 
+#### State machine input
 Here is an example message that can be used to trigger the state machine:
-
 ```json
 {
-  "ticket": "123456789",
+   "ticket": "123456789",
+   "uploads": "s3://pii-data-pipeline-input-dev/123456789/uploads",
    "inputCsv": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv",
-  "classifiedCsv": "s3://pii-data-pipeline-input-dev/123456789/classified.csv", 
-  "piiReportJson": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json"
+   "classifiedCsv": "s3://pii-data-pipeline-input-dev/123456789/classified.csv", 
+   "piiReportJson": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json"
 }
 ```
 
@@ -141,25 +142,49 @@ aws s3 cp classified.csv s3://pii-data-pipeline-input-dev/123456789/classified.c
 
 #### 2. Trigger via AWS CLI
 
-Trigger the state machine execution using the `aws stepfunctions start-execution` command:
+The goal is to trigger the state machine execution using the `aws stepfunctions start-execution` command, but we 
+need to lookup some details first.
 
+##### Goal: invoke the state machine
 ```bash
 aws stepfunctions start-execution \
   --state-machine-arn "arn:aws:states:<region>:<account-id>:stateMachine:<state-machine-name>" \
   --name "test-pii-calc-$(date +%s)" \
   --input '{
-    "ticket": "123456789",
-    "input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/classified.csv",
-    "output-s3-uri": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json"
+    ...
   }'
 ```
 
-To check the execution status:
+To do the above we need to get the state machines arn.
+```bash
+$ AWS_PAGER="" aws stepfunctions list-state-machines              
+{
+    "stateMachines": [
+        {
+            "stateMachineArn": "arn:aws:states:us-east-1:226778503410:stateMachine:pii-data-pipeline-dev",
+            "name": "pii-data-pipeline-dev",
+            "type": "STANDARD",
+            "creationDate": "2026-08-23T22:47:12.817000-05:00"
+        }
+    ]
+}
+```
+Then invoke the above "start-execution" call with the *arn* and use the state machine *input* defined above. 
+In response, you should get a message like the following.  Note the executionAr.
+```json
+{
+    "executionArn": "arn:aws:states:us-east-1:226778503410:execution:pii-data-pipeline-dev:test-pii-calc-1788624200",
+    "startDate": "2026-09-05T11:03:20.715000-05:00"
+}
+```
+
+After invocation, check the execution status:
 
 ```bash
 aws stepfunctions describe-execution \
   --execution-arn "<execution-arn-from-previous-command>"
 ```
+And check the S3 buckets to see if the correct artifacts have been generated.
 
 #### 3. Trigger via AWS Management Console
 

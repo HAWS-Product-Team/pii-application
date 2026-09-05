@@ -61,7 +61,7 @@ The Lambda receives an event containing the S3 URI where the PDFs are located:
 
 - `input-s3-uri` *(required, string)*: Valid `s3://bucket/key` URI.
 - The first path segment after the bucket name must be the numeric ticket number (e.g., `123456789`).
-- Trailing slashes are optional (e.g., `s3://bucket/123456789/upload/`).
+- Trailing slashes are optional (e.g., `s3://bucket/123456789/uploads/`).
 
 ### Lambda Success Response
 
@@ -74,35 +74,59 @@ On successful processing, the handler returns:
   "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/upload"
 }
 ```
+# Testing
+I've been using the following testing method which follows the principle of testing the simplist portion, then build 
+on top of that known good piece and testing more on top of that, continuing that process until it's all testing and 
+working.  That process instills the knowledge of how things are working seperately and in concert.
 
-### Direct Lambda Testing
+Testing:
+- unit tests for the python program pass
+- local python invocation passes for local files
+- local python invocation passes for files on s3
+- deployed lambda invocation passes on s3
+- deployed step function passes
+
+Following this method, when a problem surfaces, there is less "depth" to investigate for the root cause.
+In this document we'll talk about the last two: lambda and step function
+
+## Direct Lambda Testing
+### Deploy lambda
 The infrastructure code will look for the `normalizer.zip` file in `s3://pii-data-pipeline-input-dev/lambdas/`.
 `aws s3 cp normalizer.zip s3://pii-data-pipeline-input-dev/lambdas/`
 
-#### Local Python Invocation
+Then run terraform plan which will deploy the new .zip
 
-```python
-import json
-from pdf2csv.lambda_handler import handler
-
-event = {"input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/upload"}
-
-response = handler(event)
-print(json.dumps(response, indent=2))
-```
-
-#### AWS CLI Invocation
+### AWS CLI Invocation
+Put test .pdfs into the upload location and then do the below.
 
 ```bash
 aws lambda invoke \
-  --function-name Normalizer \
+  --function-name pii-normalizer-dev \
   --payload '{"input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/upload"}' \
   --cli-binary-format raw-in-base64-out \
   response.json
 
 cat response.json
 ```
+or if having difficulty with payload on the command line, put it into a json file.
+```bash
+AWS_PAGINATOR=off aws lambda invoke \
+  --function-name pii-normalizer-dev \
+  --payload file://payload.json \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+{
+    "StatusCode": 200,
+    "ExecutedVersion": "$LATEST"
+}
 
+ cat response.json  
+ {"ticket": "123456789", "status": "SUCCEEDED", "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"}
+```
+
+## Step Function Invocation
+Since step function interface incorporates all of the lambdas, those instructions are located [with pii-calculator documentation](../PIICalculator/pii-calculator_deployment.md).
+See the section on Step Functions.
 ---
 
 ## Local Validation with LocalStack
@@ -187,3 +211,35 @@ aws stepfunctions start-execution \
   --state-machine-arn arn:aws:states:us-east-1:123456789012:stateMachine:PIIDataPipeline \
   --input '{"input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"}'
 ```
+
+# Troubleshooting
+## Problem: lambda response is: `"errorMessage": "'module' object is not callable"`
+This happens when calling the function:
+```bash
+$ AWS_PAGINATOR=off aws lambda invoke \
+  --function-name pii-normalizer-dev \
+  --payload file://payload.json \
+  --cli-binary-format raw-in-base64-out \
+  response.json
+{
+    "StatusCode": 200,
+    "FunctionError": "Unhandled",
+    "ExecutedVersion": "$LATEST"
+}
+
+cat response.json  
+{"errorMessage": "'module' object is not callable", "errorType": "TypeError", "requestId": "5cd501c5-3dbf-45ca-8afe-08da9f9b0a34", "stackTrace": ["  File \"/var/lang/lib/python3.12/site-packages/awslambdaric/bootstrap.py\", line 178, in handle_event_request\n    response = request_handler(event, lambda_context)\n"]}%
+```    
+### Solution: Agentic AI has been reference the python module instead of the function. Change the terraform plan to
+reference the function.
+```terraform
+resource "aws_lambda_function" "normalizer" {
+  ...
+  handler =....
+}
+```
+
+## Problem: When calling the Invoke operation: Function not found: ... Normalizer:$LATEST
+The above error happens when using `aws lambda invoke --function-name ... --payload .... --cli-binary-format raw-in-base64-out ...`.
+### Solution: 
+Double check that the function name is correct. Typically `pii-normalizer-dev`

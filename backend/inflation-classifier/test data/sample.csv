@@ -1,0 +1,20 @@
+date,item_description,quantity,unit_price,total_price,category,difficulty
+2024-01-04,Whole Foods Market,1,82.26,82.26,Food and Beverages,easy
+2024-01-04,CVS - vitamins and snacks,1,35.53,35.53,Food and Beverages,medium
+2024-01-05,Monthly mortgage payment,1,2100.0,2100.0,Housing,easy
+2024-01-05,Duke Energy electric bill,1,158.46,146.01,Energy,easy
+2024-01-06,Glad trash bags 45ct,1,19.16,19.16,Transportation,easy
+2024-01-08,Airbnb host supplies - toiletries,1,54.98,54.98,Housing,hard
+2024-01-09,Shell gas fill-up,1,51.92,51.64,Energy,easy
+2024-01-10,Little League registration,1,103.1,103.1,Recreation Education and Communication,easy
+2024-01-11,Walmart grocery pickup,1,79.8,79.8,Food and Beverages,medium
+2024-01-13,Monthly mortgage payment,1,2100.0,2100.0,Housing,easy
+2024-01-15,Natural gas bill - Piedmont,1,54.84,128.42,Energy,easy
+2024-01-17,Internet + cable - Xfinity,1,103.02,103.02,Recreation Education and Communication,easy
+2024-01-18,T-Mobile family plan,1,145.0,145.0,Transportation,easy
+2024-01-23,Aldi grocery run,1,88.2,88.2,Food and Beverages,easy
+2024-01-28,HomeGoods store visit,1,109.79,109.79,Housing,medium
+2024-01-29,Water and sewer utility,1,78.96,78.96,Transportation,easy
+2024-01-30,Amazon - car phone mount,1,21.7,21.7,Transportation,hard
+2024-02-02,Monthly mortgage payment,1,2100.0,2100.0,Housing,easy
+2024-02-04,AAA membership renewal,1,74.0,74.0,Transportation,medium
