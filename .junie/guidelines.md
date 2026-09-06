@@ -11,9 +11,9 @@
 - Keep modules modular and easy to test.
 
 ## Testing
-- Write unit tests before implementation in the Test Driven Development style a done by Kent Beck: no code should be written until there 
-is a failing test first.  Then write the minimum amount of code to make the test pass. And continue to refactor and 
-improve the code until it is clean and efficient.
+- Write unit tests before implementation in the Test Driven Development style a done by Kent Beck: no code should be 
+written until there is a failing test first.  Then write the minimum amount of code to make the test pass. 
+And continue to refactor and improve the code until it is clean and efficient.
 - Use pytest.
 - Cover error handling paths, not only happy paths.
 - Code coverage should be at least 80%.
