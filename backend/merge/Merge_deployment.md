@@ -2,13 +2,13 @@
 
 ## Overview
 
-The **Normalizer** Lambda function is the first processing stage in the PII Data Pipeline:
+The **Merge** Lambda function is the second processing stage in the PII Data Pipeline:
 
 ```
-User Upload (PDF) ──► Normalizer (Lambda) ──► Classifier (AWS Batch) ──► PIICalculation (Lambda)
+User Upload (PDF) ──► Normalizer (Lambda) ──► Merge (Lambda) ──► Classifier (AWS Batch) ──► PIICalculation (Lambda)
 ```
 
-The Normalizer takes user-uploaded spending-statement PDFs in S3, parses transaction records, and converts them to standardized CSVs in place within the same S3 prefix (`.pdf` replaced by `.csv`). This allows lightweight, fast execution directly upon upload without spinning up heavyweight container tasks.
+Merge takes takes a directory of CVSs and merges them into one. 
 
 ---
 
@@ -23,7 +23,7 @@ The Normalizer takes user-uploaded spending-statement PDFs in S3, parses transac
 
 ### Building the Package
 
-Run the packaging script from `backend/pdf2csv`:
+Run the packaging script from `backend/merge`:
 
 ```bash
 chmod +x build_n_package_lambda.sh
@@ -55,7 +55,8 @@ The Lambda receives an event containing the S3 URI where the PDFs are located:
 
 ```json
 {
-  "input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"
+  "input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads",
+  "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv"
 }
 ```
 
@@ -71,11 +72,11 @@ On successful processing, the handler returns:
 {
   "ticket": "123456789",
   "status": "SUCCEEDED",
-  "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"
+  "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv"
 }
 ```
 # Testing
-I've been using the following testing method which follows the principle of testing the simplist portion, then build 
+Using the following testing method which follows the principle of testing the simplist portion, then build 
 on top of that known good piece and testing more on top of that, continuing that process until it's all testing and 
 working.  That process instills the knowledge of how things are working seperately and in concert.
 
@@ -94,15 +95,15 @@ In this document we'll talk about the last two: lambda and step function
 The infrastructure code will look for the `normalizer.zip` file in `s3://pii-data-pipeline-input-dev/lambdas/`.
 `aws s3 cp normalizer.zip s3://pii-data-pipeline-input-dev/lambdas/`
 
-Then run terraform plan which will deploy the new .zip
+Then run terraform plan which will deploy the new zip.
 
 ### AWS CLI Invocation
 Put test .pdfs into the upload location and then do the below.
 
 ```bash
 aws lambda invoke \
-  --function-name pii-normalizer-dev \
-  --payload '{"input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"}' \
+  --function-name pii-merge-dev \
+  --payload '{"input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads", "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv"}' \
   --cli-binary-format raw-in-base64-out \
   response.json
 
@@ -110,8 +111,8 @@ cat response.json
 ```
 or if having difficulty with payload on the command line, put it into a json file.
 ```bash
-AWS_PAGINATOR=off aws lambda invoke \
-  --function-name pii-normalizer-dev \
+AWS_PAGER="" aws lambda invoke \
+  --function-name pii-merge-dev \
   --payload file://payload.json \
   --cli-binary-format raw-in-base64-out \
   response.json
@@ -121,7 +122,7 @@ AWS_PAGINATOR=off aws lambda invoke \
 }
 
  cat response.json  
- {"ticket": "123456789", "status": "SUCCEEDED", "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"}
+ {"ticket": "123456789", "status": "SUCCEEDED", "output-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv"}
 ```
 
 ## Step Function Invocation
@@ -130,6 +131,7 @@ See the section on Step Functions.
 ---
 
 ## Local Validation with LocalStack
+I've not used LocalStack but included it as something we may be interested in trying out sometime.
 
 You can test the entire workflow locally using LocalStack:
 
@@ -137,7 +139,7 @@ You can test the entire workflow locally using LocalStack:
 
 ```bash
 docker run --rm -d \
-  --name localstack-normalizer \
+  --name localstack-merge \
   -p 4566:4566 \
   -e SERVICES=s3 \
   localstack/localstack:latest
@@ -186,33 +188,44 @@ aws --endpoint-url=http://localhost:4566 s3 cp \
   s3://pii-data-pipeline-input-dev/123456789/uploads/1.csv -
 ```
 
----
-
 ## Step Functions Integration
 
-The Normalizer Step Functions state machine is defined and managed in the infrastructure repository.
+The Merge Step Functions state machine is defined and managed in the infrastructure repository.
 
 ### State machine input
-Here is an example message that can be used to trigger the state machine:
+Here is an example message that can be used to trigger the state machine.  Put it into a file called input.json.
 ```json
-{
-   "ticket": "123456789",
-   "uploads": "s3://pii-data-pipeline-input-dev/123456789/uploads",
-   "inputCsv": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv",
-   "classifiedCsv": "s3://pii-data-pipeline-input-dev/123456789/classified.csv", 
-   "piiReportJson": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json"
-}
+'{ 
+   "ticket": "123456789", 
+   "uploads": "s3://pii-data-pipeline-input-dev/123456789/uploads", 
+   "inputCsv": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv", 
+   "classifiedCsv": "s3://pii-data-pipeline-input-dev/123456789/classified.csv",  
+   "piiReportJson": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json" 
+}'
 ```
 
 ### Triggering Execution
-
 Once wired via Terraform, an execution can be triggered via AWS CLI:
-
+1) 
+```bash
+aws stepfunctions list-state-machines
+```
+Copy the state-machine arn and use it below:
+2) 
 ```bash
 aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:123456789012:stateMachine:PIIDataPipeline \
-  --input '{"input-s3-uri": "s3://pii-data-pipeline-input-dev/123456789/uploads"}'
+  --state-machine-arn <ARN without surrounding quotes> \
+  --input file://input.json
 ```
+You should get back a success message (job started):
+```json
+{
+    "executionArn": "arn:aws:states:us-east-1:226778503410:execution:pii-data-pipeline-dev:7323fa9a-6cf3-413b-9c21-98cd5586aa41",
+    "startDate": "2026-09-06T19:11:28.629000-05:00"
+}
+```
+
+You can use the AWS console or aws cli to watch the status.
 
 # Troubleshooting
 ## Problem: lambda response is: `"errorMessage": "'module' object is not callable"`

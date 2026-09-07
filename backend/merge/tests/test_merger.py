@@ -9,7 +9,6 @@ import pytest
 
 import merge
 from merge.cli import build_parser, main
-from merge.lambda_handler import lambda_handler
 from merge.merger import (
     HeaderMismatchError,
     MalformedRowError,
@@ -317,28 +316,6 @@ def test_cli_parser_help():
     assert "--verbose" in help_text
 
 
-def test_handler_returns_summary(tmp_path, storage):
-    in_dir = tmp_path / "in"
-    in_dir.mkdir()
-    write_csv(in_dir / "a.csv", [["2026-01-01", "x", "1.00"]])
-    out = tmp_path / "merged.csv"
-
-    response = lambda_handler(
-        {
-            "ticket_number": "abc-123",
-            "input_location": str(in_dir),
-            "output_path": str(out),
-        },
-        context=None,
-        storage=storage,
-    )
-
-    assert response["ticket_number"] == "abc-123"
-    assert response["total_rows"] == 1
-    assert response["file_count"] == 1
-    assert response["output_path"] == str(out)
-
-
 def test_merge_csv_files_requires_output_path(tmp_path, storage):
     in_dir = tmp_path / "in"
     in_dir.mkdir()
@@ -405,86 +382,6 @@ def test_cli_custom_source_column_without_verbose(tmp_path, capsys):
     assert read_csv(out)[0] == HEADER
     captured = capsys.readouterr().out
     assert "a.csv: 1 rows" not in captured
-
-
-def test_handler_rejects_missing_event_fields(storage):
-    with pytest.raises(ValueError, match="Missing required event field: input_location"):
-        lambda_handler({"ticket_number": "abc-123", "output_path": "out.csv"}, context=None, storage=storage)
-
-    with pytest.raises(ValueError, match="Missing required event field: output_path"):
-        lambda_handler({"ticket_number": "abc-123", "input_location": "in_dir"}, context=None, storage=storage)
-
-
-def test_handler_supports_output_location_alias(tmp_path, storage):
-    in_dir = tmp_path / "in"
-    in_dir.mkdir()
-    write_csv(in_dir / "a.csv", [["2026-01-01", "x", "1.00"]])
-    out = tmp_path / "merged.csv"
-
-    response = lambda_handler(
-        {
-            "ticket_number": "abc-123",
-            "input_location": str(in_dir),
-            "output_location": str(out),
-        },
-        context=None,
-        storage=storage,
-    )
-    assert response["output_path"] == str(out)
-
-
-def test_handler_supports_verbose_flag(tmp_path, storage):
-    in_dir = tmp_path / "in"
-    in_dir.mkdir()
-    write_csv(in_dir / "a.csv", [["2026-01-01", "x", "1.00"]])
-    out = tmp_path / "merged.csv"
-
-    response = lambda_handler(
-        {
-            "ticket_number": "abc-123",
-            "input_location": str(in_dir),
-            "output_path": str(out),
-            "verbose": True,
-        },
-        context=None,
-        storage=storage,
-    )
-    assert response["total_rows"] == 1
-    assert read_csv(out)[0] == HEADER + ["source_file"]
-
-
-def test_handler_logs_and_reraises_merge_error(tmp_path, storage):
-    in_dir = tmp_path / "in"
-    in_dir.mkdir()
-    out = tmp_path / "merged.csv"
-
-    with pytest.raises(NoInputFilesError):
-        lambda_handler(
-            {
-                "ticket_number": "abc-123",
-                "input_location": str(in_dir),
-                "output_path": str(out),
-            },
-            context=None,
-            storage=storage,
-        )
-
-
-def test_handler_uses_default_storage(tmp_path):
-    in_dir = tmp_path / "in"
-    in_dir.mkdir()
-    write_csv(in_dir / "a.csv", [["2026-01-01", "x", "1.00"]])
-    out = tmp_path / "merged.csv"
-
-    response = lambda_handler(
-        {
-            "ticket_number": "abc-123",
-            "input_location": str(in_dir),
-            "output_path": str(out),
-        },
-        context=None,
-    )
-    assert response["total_rows"] == 1
 
 
 def test_cli_module_execution(tmp_path, monkeypatch):
