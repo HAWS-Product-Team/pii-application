@@ -1,5 +1,0 @@
-x canary 
-x Track Your Inflation title should appear in home page
-x Calculate link renders as expected
-x Learn more link opens as expected 
-- Description should appear in the home page

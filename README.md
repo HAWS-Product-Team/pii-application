@@ -5,7 +5,7 @@ A web application that computes a user's Personal Inflation Index
 - backend: python code for data ingestion and inflation computation
 - frontend: react code for user interface and data visualization
 
-No code between the two folders is refeferenced directly. Communication between the two folders is done via Web API calls.
+No code between the two folders is referenced directly. Communication between the two folders is done via Web API calls.
 
 # user workflow
 1. user discovers app
@@ -82,7 +82,7 @@ Use a model to categorize items automatically.
 
 **Inputs:** Item name + description  
 **Outputs:** Category (Groceries, Household, Electronics, Clothing, etc.)
-Read more about the model [here](model%20for%20classification.md).
+Read more about the model [here](./team%20docs/model%20for%20classification.md).
 
 -----
 
