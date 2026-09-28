@@ -1,4 +1,6 @@
 # Personal Inflation Index - Solutions Architecture
+PII is a stateless tool that returns to the user insight about their financial situation.  We don't authenticate
+the user anymore than a mortage calculater requires that step.
 
 ## High-Level Architecture Diagram
 ```text
@@ -17,7 +19,7 @@
 │                       starts Step Functions (executionName = ticketId) │
 │                                                                        │
 │   GET  /status    ──► DynamoDB GetItem (direct integration)            │
-└─────┬────────────────────────────────────────────────────┬───────────┘
+└─────┬────────────────────────────────────────────────────┬─────────────┘
       │                                                    │
       │ executionName = ticketId                           │ key = ticketId
       │ (free idempotency)                                 │ (mapping template)
