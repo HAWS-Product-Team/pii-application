@@ -49,7 +49,7 @@ def mint_ticket(
     item = {
         "ticket_id": {"S": ticket_id},
         "secret_hash": {"S": secret_hash},
-        "status": {"S": "issued"},
+        "job_status": {"S": "issued"},
         "expires_at": {"N": str(expires_at)},
         "created_at": {"S": now_iso_utc},
     }

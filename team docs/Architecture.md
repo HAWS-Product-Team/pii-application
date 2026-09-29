@@ -7,38 +7,36 @@ the user anymore than a mortage calculater requires that step.
 ┌─────────────────────────┐
 │   Amplify / React App   │
 └───────────┬─────────────┘
-            │  HTTPS (Bearer JWT in Authorization header)
+            │  HTTPS (Bearer token <ticket>.<secret> in Authorization header)
             ▼
 ┌────────────────────────────────────────────────────────────────────────┐
 │                              API Gateway                               │
-│                                                                        │
-│   JWT Authorizer  ──► validates JWT signature via OIDC JWKS,           │
-│                       extracts user context                            │
-│                                                                        │
-│   POST /submit    ──► generates ticketId, provides S3 presigned URL,   │
-│                       starts Step Functions (executionName = ticketId) │
-│                                                                        │
-│   GET  /status    ──► DynamoDB GetItem (direct integration)            │
+│   GET /                    ──► welcome & info                          │
+│   POST /spending-history   ──► accepts upload request, returns ticket  │
+│                                and presigned URL, writes to DynamoDB   │
+│   GET  /pii-report-status  ──► checks processing status via DynamoDB   │
+│   GET  /pii-report         ──► retrieves calculation report from S3    │
+│   Custom Authorizer        ──► validates token against DynamoDB hash   │
 └─────┬────────────────────────────────────────────────────┬─────────────┘
-      │                                                    │
-      │ executionName = ticketId                           │ key = ticketId
-      │ (free idempotency)                                 │ (mapping template)
-      ▼                                                    ▼
+      ▼                                                    │
+ ┌──────────────────────────────────────────────────┐      │
+ │ UploadWatcher ──► Starts pipeline when expected  │      │
+ │                   uploads have landed in S3.     │      │
+ └─────┬────────────────────────────────────────────┘      │
+   starts execution: {ticket, uploads,                     │ key = ticketId
+       │              inputCsv, classifiedCsv,             │ (token auth & status)
+       │              piiReportJson}                       │
+       ▼                                                   ▼
 ┌─────────────────────────────────────────┐      ┌──────────────────────────┐
 │             Step Functions              │      │         DynamoDB         │
-│             (state machine)             │      │     PAY_PER_REQUEST      │
+│         (data pipeline orchestrator)    │      │     PAY_PER_REQUEST      │
 │                                         │      │                          │
-│   pdf2csv ─► merge ─► anonymize         │      │   PK: ticketId           │
-│   ─► classify ─► calculate ─► complete  │─────►│   status                 │
-│                                         │write │   currentStage           │
-│   (updates stage status directly)       │      │   resultS3Uri            │
-│                                         │      │   TTL (24h)              │
+│   Normalize ──► Merge ──►               │      │   PK: ticketId           │
+│   Classify (Batch) ──► CalculatePII     │      │   secretHash             │
+│                                         │      │   status                 │
+│   (orchestrates Lambdas & AWS Batch,    │      │   TTL (24h)              │
+│    accumulates results via ResultPath)  │      │                          │
 └─────────────────────────────────────────┘      └──────────────────────────┘
-
-Two paths, one row:
-  • Step Functions WRITES status directly to DynamoDB as pipeline stages progress
-  • GET /status READS status directly from DynamoDB — no Lambda compute in the read path
-  • Complete separation of concerns: asynchronous execution engine and low-latency reader
 ```
 
 ---
@@ -50,28 +48,22 @@ Two paths, one row:
         │  ┌────────────────────────────────────────────────────────────┐  │
         │  │ State Machine (staged data pipeline):                      │  │
         │  │                                                            │  │
-        │  │  [1] pdf2csv         → Lambda                              │  │
-        │  │        │                 (extracts CSV from 1-15MB PDF)    │  │
+        │  │  [1] Normalize       → Lambda (pdf2csv)                    │  │
+        │  │        │                 (extracts CSVs from PDF uploads)  │  │
         │  │        ▼                                                   │  │
-        │  │  [2] Normalize/Merge → Lambda                              │  │
-        │  │        │                 (cleans & structures transactions)│  │
+        │  │  [2] Merge           → Lambda                              │  │
+        │  │        │                 (combines CSVs to purchase_data)  │  │
         │  │        ▼                                                   │  │
-        │  │  [3] Anonymize       → Lambda                              │  │
-        │  │        │                 (removes sensitive PII data)      │  │
+        │  │  [3] Classify        → AWS Batch (Fargate ARM64)           │  │
+        │  │        │                 (sync job classify-{ticket})      │  │
         │  │        ▼                                                   │  │
-        │  │  [4] Classify        → ECS Fargate / Lambda                │  │
-        │  │        │                 (TF-IDF + ML category inference)  │  │
-        │  │        ▼                                                   │  │
-        │  │  [5] Calculate       → Lambda                              │  │
-        │  │        │                 (computes inflation & weights)    │  │
-        │  │        ▼                                                   │  │
-        │  │  [6] Update Complete → DynamoDB Task                       │  │
-        │  │                          (writes COMPLETED + resultS3Uri)  │  │
+        │  │  [4] CalculatePII    → Lambda                              │  │
+        │  │                          (computes PII report JSON)        │  │
         │  │                                                            │  │
         │  │ Each stage reads its input artifact from S3 and writes     │  │
-        │  │ output artifacts to S3. Step Functions passes S3 URIs      │  │
-        │  │ between states and updates DynamoDB stage markers.         │  │
-        │  │ On error → transitions to ErrorHandler (writes FAILED).    │  │
+        │  │ output artifacts to S3. Step Functions coordinates JSON    │  │
+        │  │ payload parameters (uploads, inputCsv, classifiedCsv,      │  │
+        │  │ piiReportJson) and manages retries with exponential backoff│  │
         │  └────────────────────────────────────────────────────────────┘  │
         └──────────────────────────────────────────────────────────────────┘
 
@@ -83,9 +75,13 @@ Two paths, one row:
         │  S3 Input / Pipeline Bucket    │    │  S3 Results Bucket             │
         │ (pii-data-pipeline-input-<env>)│    │ (pii-data-pipeline-output-<env>)│
         │                                │    │                                │
-        │ Path: /uploads/{ticketId}/     │    │ Path: /results/{ticketId}/     │
-        │        input.pdf (1-15MB)      │    │        output.json             │
-        │ Lifecycle: Delete after 1 day  │    │ Lifecycle: Delete after 30 days│
+        │ Path: /{ticketId}/uploads/     │    │ Path: /{ticketId}/             │
+        │        input PDFs & parsed CSVs│    │        pii-report.json         │
+        │ Path: /{ticketId}/             │    │                                │
+        │        purchase_data.csv       │    │                                │
+        │        classified.csv          │    │                                │
+        │ Path: /lambdas/*.zip           │    │                                │
+        │ Lifecycle: Delete after 2 days │    │ Lifecycle: Delete after 14 days│
         └────────────────────────────────┘    └────────────────────────────────┘
 ```
 
@@ -97,49 +93,66 @@ Two paths, one row:
 
 - **Role:** Client user interface for document submission and inflation visualization.
 - **Responsibilities:**
-  - Authenticate user against the OIDC Identity Provider to acquire a valid JWT.
-  - Call `POST /submit` to register the upload request and receive a unique `ticketId` and an S3 presigned PUT URL.
-  - Upload the raw PDF document (1 MB to 15 MB) directly to S3 via the presigned URL.
-  - Poll `GET /status?ticketId={ticketId}` every 5 seconds to track real-time pipeline status.
-  - Retrieve and render the final inflation metrics, category breakdown charts, and spending weights upon job completion.
-- **AWS Access:** Direct browser upload to S3 via temporary presigned URLs; all API interactions authenticated via Bearer JWT.
+  - Authenticate user requests using a bearer token (`<ticket>.<secret>`) where the secret is verified against a hashed secret stored in DynamoDB.
+  - Call `POST /spending-history` to register the upload request and receive a unique numeric `ticket` (e.g., `123456789`), a secret token, and an S3 presigned PUT URL.
+  - Upload raw PDF statements (1 MB to 15 MB) directly to S3 (`{ticket}/uploads/`) via the presigned URL.
+  - Poll `GET /pii-report-status` using `Authorization: Bearer <ticket>.<secret>` to track real-time pipeline status.
+  - Retrieve and render the final inflation metrics, category breakdown charts, and spending weights upon job completion (`GET /pii-report`).
+- **AWS Access:** Direct browser upload to S3 via temporary presigned URLs; all subsequent API interactions authenticated via custom Bearer token.
 
 ---
 
 ### 2. API Gateway
 
-- **Role:** Managed API entry point with token validation and direct serverless integrations.
-- **Authorizer:** JWT Authorizer configured with standard OpenID Connect (OIDC) / OAuth2 JSON Web Key Sets (JWKS) issuer and audience verification.
+- **Role:** Managed API entry point with custom token authorizer, and direct serverless integrations.
+- **Authorizer:** Custom Lambda Authorizer (`BearerAuth`, `nodejs18.x`) validates that the requestor's Bearer token (`<ticket>.<secret>`) secret, when hashed, matches the hash stored in DynamoDB for that ticket.
 - **Endpoints:**
   
   ```text
-  POST /submit
-    Headers:  Authorization: Bearer <JWT>
-    Request:  { "filename": "statement.pdf", "fileSizeBytes": 5242880 }
+  GET /
+    Welcome / landing page endpoint.
+
+  POST /spending-history
+    Headers:  Content-Type: application/json
+    Request:  [
+  { "filename": "statement.pdf", "fileSizeBytes": 5242880 },
+  { "filename": "statement2.pdf", "fileSizeBytes": 5242880 },
+  ]
     Response: {
-      "ticketId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "uploadUrl": "https://pii-data-pipeline-input-<env>.s3.amazonaws.com/uploads/a1b2c3d4.../input.pdf?AWSAccessKeyId=...",
-      "status": "PENDING",
+      "ticket": "123456789",
+      "secret": "a1b2c3d4e5f67890abcdef1234567890",
+      [
+        "uploadUrl": "https://pii-data-pipeline-input-<env>.s3.amazonaws.com/123456789/uploads/statement.pdf?AWSAccessKeyId=...",
+        "uploadUrl": "https://pii-data-pipeline-input-<env>.s3.amazonaws.com/123456789/uploads/statement2.pdf?AWSAccessKeyId=...",
+      ],
+      "job_status": "PENDING",
       "estimatedSeconds": 45
     }
 
-  GET /status?ticketId={ticketId}
-    Headers:  Authorization: Bearer <JWT>
+  GET /pii-report-status
+    Headers:  Authorization: Bearer <ticket>.<secret>
     Response: {
-      "ticketId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "status": "COMPLETED | IN_PROGRESS | FAILED",
-      "currentStage": "CALCULATING",
-      "resultS3Uri": "s3://pii-data-pipeline-output-<env>/results/a1b2c3d4.../output.json",
-      "updatedAt": "2026-09-13T17:30:00Z"
+      "ticket": "123456789",
+      "job_status": "COMPLETED | IN_PROGRESS | FAILED",
+      "updatedAt": "2026-09-28T15:00:00Z"
+    }
+
+  GET /pii-report
+    Headers:  Authorization: Bearer <ticket>.<secret>
+    Response: {
+      "ticket": "123456789",
+      "job_status": "COMPLETED",
+      "report": { ... }
     }
   ```
 
-- **Direct Integrations:**
-  - `POST /submit`: Invokes an ingestion helper (or native VTL mapping) to generate `ticketId`, write the initial `PENDING` record into DynamoDB, generate the S3 presigned PUT URL, and trigger Step Functions execution.
-  - `GET /status`: Direct DynamoDB `GetItem` integration via mapping template (`key = { "ticketId": { "S": "$input.params('ticketId')" } }`). Zero intermediate compute required for status queries.
+- **Direct Integrations & Messaging:**
+  - `POST /spending-history`: Interacts with backend ticket minting, provides presigned S3 upload URLs, 
+  and puts ticket and secret in DynamoDB.
+  - `GET /pii-report-status` & `GET /pii-report`: Protected by `BearerAuth` custom Lambda authorizer.
 - **Security & Limits:**
   - CORS enabled for frontend domain.
-  - API Gateway throttling (e.g., 100 requests/sec with burst capacity of 200).
+  - API Gateway throttling and logging configured per stage.
 
 ---
 
@@ -149,85 +162,177 @@ Two paths, one row:
 - **Billing Mode:** `PAY_PER_REQUEST` (On-Demand Capacity)
 - **Primary Key:** `ticketId` (String, Partition Key)
 - **Schema Attributes:**
-  - `ticketId` (String): Unique UUID for the processing job.
-  - `userId` (String): Subject identifier from JWT claims.
-  - `status` (String): `PENDING` | `CONVERTING_PDF` | `NORMALIZING` | `CLASSIFYING` | `CALCULATING` | `COMPLETED` | `FAILED`
-  - `currentStage` (String): Human-readable name of the executing step.
-  - `resultS3Uri` (String, optional): S3 location of the completed calculation output.
-  - `errorMessage` (String, optional): Diagnostics populated on processing failure.
-  - `createdAt` (String): ISO 8601 timestamp.
-  - `updatedAt` (String): ISO 8601 timestamp.
-  - `ttl` (Number): Epoch timestamp set to 24 hours from creation for automatic item expiration.
+  - `ticket_id` (String): Unique numeric ticket ID (e.g., `123456789`).
+  - `secret_hash` (String): Cryptographic hash of the ticket secret for token authentication.
+  - `expected_file_count` (Number): number of files expected to be uploaded. 
+  - `job_status` (String): `AWAITING_UPLOAD` | `PROCESSING` | `COMPLETED` | `FAILED`
+  - `expires_at` (Number): Epoch timestamp set to 24 hours from creation for automatic item expiration.
+  - `created_at` (String): ISO 8601 timestamp.
 
 ---
 
 ### 4. AWS Step Functions State Machine
 
-- **Role:** End-to-end pipeline orchestrator managing data transformation stages, state transitions, retries, and failure states.
-- **Execution Name:** `ticketId` (enforces native idempotency; duplicate triggers for the same ticket cannot create parallel executions).
-- **Stage Progression:**
-  1. **`UpdateStatus_Converting`**: DynamoDB Task updates `status` to `CONVERTING_PDF`.
-  2. **`Pdf2CsvStage`**: Invokes `pdf2csv` Lambda. Converts 1MB–15MB PDF from `uploads/{ticketId}/input.pdf` into tabular CSV `pipeline/{ticketId}/extracted.csv`.
-  3. **`UpdateStatus_Normalizing`**: DynamoDB Task updates `status` to `NORMALIZING`.
-  4. **`NormalizeMergeStage`**: Invokes `merge` Lambda. Cleans date formats, standardizes currency values, and produces `pipeline/{ticketId}/normalized.csv`.
-  5. **`AnonymizeStage`**: Invokes `anonymize` Lambda. Masks personal identifiers and accounts, creating `pipeline/{ticketId}/anonymized.csv`.
-  6. **`UpdateStatus_Classifying`**: DynamoDB Task updates `status` to `CLASSIFYING`.
-  7. **`ClassifyStage`**: Dispatches ML classification task (`inflation-classifier` container/worker). Evaluates transaction descriptions via pre-loaded TF-IDF model and writes `pipeline/{ticketId}/classified.csv`.
-  8. **`UpdateStatus_Calculating`**: DynamoDB Task updates `status` to `CALCULATING`.
-  9. **`CalculateStage`**: Invokes `PIICalculator` Lambda. Computes personal inflation rates across 6-month and 12-month windows and spending category breakdowns. Outputs final JSON payload to `results/{ticketId}/output.json`.
-  10. **`UpdateStatus_Completed`**: DynamoDB Task sets `status` to `COMPLETED` and records `resultS3Uri`.
-- **Error Handling:**
-  - Each task defines native `Retry` policies (exponential backoff) for transient errors.
-  - Global `Catch` handler routes unexpected exceptions to `UpdateStatus_Failed`, recording `status = "FAILED"` and the exception message into DynamoDB.
+- **Role:** Orchestrates the end-to-end data pipeline: Normalizer (Lambda), Merge (Lambda), Classifier (AWS Batch on Fargate ARM64), and PII Calculator (Lambda).
+- **State Machine Resource:** `${app_name}-data-pipeline-${environment}`
+- **Execution Role:** `${app_name}-step-functions-role-${environment}`
+- **Input Execution Contract:**
+  The state machine is triggered with a JSON payload containing the ticket and S3 artifact locations:
+
+  ```json
+  {
+    "ticket": "123456789",
+    "uploads": "s3://pii-data-pipeline-input-dev/123456789/uploads",
+    "inputCsv": "s3://pii-data-pipeline-input-dev/123456789/purchase_data.csv",
+    "classifiedCsv": "s3://pii-data-pipeline-input-dev/123456789/classified.csv",
+    "piiReportJson": "s3://pii-data-pipeline-output-dev/123456789/pii-report.json"
+  }
+  ```
+
+- **Stages & State Transitions:**
+
+  ```text
+  [Start] ──► Normalize (Lambda) ──► Merge (Lambda) ──► Classify (Batch Sync) ──► CalculatePII (Lambda) ──► [End]
+  ```
+
+  1. **`Normalize`** (`Task: arn:aws:states:::lambda:invoke`)
+     - **Target Function:** `aws_lambda_function.normalizer` (`${app_name}-normalizer-${environment}`)
+     - **Payload:**
+       ```json
+       {
+         "input-s3-uri.$": "$.uploads",
+         "output-s3-uri.$": "$.uploads"
+       }
+       ```
+     - **ResultPath:** `$.normalizerResult`
+     - **Retry Policy:**
+       - Errors: `Lambda.ServiceException`, `Lambda.AWSLambdaException`, `Lambda.SdkClientException`, `Lambda.TooManyRequestsException`
+       - `IntervalSeconds`: 2, `MaxAttempts`: 3, `BackoffRate`: 2.0
+     - **Next:** `Merge`
+     - **Description:** Invokes the PDF parser (`pdf2csv`) to extract tabular transaction data from all uploaded PDF statements in `$.uploads` and writes individual CSV files back to `$.uploads`.
+
+  2. **`Merge`** (`Task: arn:aws:states:::lambda:invoke`)
+     - **Target Function:** `aws_lambda_function.merge` (`${app_name}-merge-${environment}`)
+     - **Payload:**
+       ```json
+       {
+         "ticket.$": "$.ticket",
+         "input-s3-uri.$": "$.uploads",
+         "output-s3-uri.$": "$.inputCsv"
+       }
+       ```
+     - **ResultPath:** `$.mergeResult`
+     - **Retry Policy:** Same Lambda transient exception retry policy (`IntervalSeconds`: 2, `MaxAttempts`: 3, `BackoffRate`: 2.0).
+     - **Next:** `Classify`
+     - **Description:** Consolidates all individual CSV files found in `$.uploads` into a single unified transaction CSV (`purchase_data.csv`) saved to `$.inputCsv`.
+
+  3. **`Classify`** (`Task: arn:aws:states:::batch:submitJob.sync`)
+     - **Target:** AWS Batch Fargate Job Definition (`${app_name}-batch-jobdef-fargate-${environment}`) on Job Queue (`${app_name}-batch-queue-${environment}`)
+     - **Parameters:**
+       ```json
+       {
+         "JobName.$": "States.Format('classify-{}', $.ticket)",
+         "JobQueue": "${aws_batch_job_queue.batch_queue.arn}",
+         "JobDefinition": "${aws_batch_job_definition.batch_job.arn}",
+         "Parameters": {
+           "input_s3_uri.$": "$.inputCsv",
+           "output_s3_uri.$": "$.classifiedCsv"
+         }
+       }
+       ```
+     - **ResultPath:** `$.batchResult`
+     - **Retry Policy:**
+       - Errors: `Batch.AWSBatchException`
+       - `IntervalSeconds`: 30, `MaxAttempts`: 2, `BackoffRate`: 2.0
+     - **Next:** `CalculatePII`
+     - **Description:** Submits a synchronous AWS Batch job on Fargate ARM64. The containerized ML classifier processes `purchase_data.csv` to predict CPI spending categories and outputs `classified.csv` to `$.classifiedCsv`.
+
+  4. **`CalculatePII`** (`Task: arn:aws:states:::lambda:invoke`)
+     - **Target Function:** `aws_lambda_function.pii_calculator` (`${app_name}-pii-calculator-${environment}`)
+     - **Payload:**
+       ```json
+       {
+         "ticket.$": "$.ticket",
+         "input-s3-uri.$": "$.classifiedCsv",
+         "output-s3-uri.$": "$.piiReportJson"
+       }
+       ```
+     - **ResultPath:** `$.lambdaResult`
+     - **Retry Policy:** Same Lambda transient exception retry policy (`IntervalSeconds`: 2, `MaxAttempts`: 3, `BackoffRate`: 2.0).
+     - **End:** `true`
+     - **Description:** Ingests `classified.csv`, calculates category weights and personal inflation rates across 
+     6-month and 12-month periods, and outputs `pii-report.json` to the S3 results bucket.
+
+- **State Machine Logging & Tracing:**
+  - **CloudWatch Log Group:** `/aws/vendedlogs/states/${app_name}-data-pipeline-${environment}`
+  - **Logging Level:** `ALL`
+  - **Include Execution Data:** `true`
+  - **Retention:** 3 days (configurable via `step_functions_log_retention_days`)
 
 ---
 
 ### 5. Pipeline Compute Modules
 
-#### Module: `pdf2csv`
-- **Runtime:** AWS Lambda (Python 3.12)
-- **Input:** `s3://pii-data-pipeline-input-<env>/uploads/{ticketId}/input.pdf`
-- **Output:** `s3://pii-data-pipeline-input-<env>/pipeline/{ticketId}/extracted.csv`
-- **Memory/Timeout:** 1024MB, 60 seconds
+#### Module: `pdf2csv` (Normalizer)
+- **Runtime:** AWS Lambda (`python3.12`, `arm64`)
+- **Handler:** `pdf2csv.lambda_handler.handler`
+- **Memory / Timeout:** 1536 MB, 180 seconds
+- **Ephemeral Storage (/tmp):** 5120 MB (5 GB)
+- **Deployment Artifact:** `s3://pii-data-pipeline-input-<env>/lambdas/normalizer.zip`
+- **Input:** `s3://pii-data-pipeline-input-<env>/{ticket}/uploads`
+- **Output:** Individual parsed CSVs written to `s3://pii-data-pipeline-input-<env>/{ticket}/uploads`
 
-#### Module: `merge` / Normalize
-- **Runtime:** AWS Lambda (Python 3.12)
-- **Input:** Extracted CSV artifact
-- **Output:** Normalized transaction schema CSV
-- **Memory/Timeout:** 512MB, 30 seconds
+#### Module: `merge`
+- **Runtime:** AWS Lambda (`python3.12`, `arm64`)
+- **Handler:** `merge.lambda_handler.handler`
+- **Memory / Timeout:** 512 MB, 60 seconds
+- **Deployment Artifact:** `s3://pii-data-pipeline-input-<env>/lambdas/merge.zip`
+- **Input:** `s3://pii-data-pipeline-input-<env>/{ticket}/uploads`
+- **Output:** Consolidated CSV `s3://pii-data-pipeline-input-<env>/{ticket}/purchase_data.csv`
 
 #### Module: `inflation-classifier`
-- **Runtime:** ECS Fargate Task / High-Memory Lambda
-- **Model:** Pre-packaged TF-IDF vectorizer + Logistic Regression classifier baked into container image.
-- **Input:** Normalized & anonymized transaction CSV
-- **Output:** Classified transaction items with category tags
-- **Configuration:** 1 vCPU, 2GB Memory
+- **Runtime:** AWS Batch on ECS Fargate / Fargate Spot (`arm64`)
+- **Compute Environment:** Managed Fargate / Fargate Spot (`max_vcpus = 16`, default `use_fargate_spot = true`)
+- **Job Definition:** `${app_name}-batch-jobdef-fargate-${environment}`
+- **Container Image:** Amazon ECR repository `${app_name}-classifier-${environment}:latest`
+- **Resource Allocation:** 2 vCPU, 4096 MB RAM
+- **Job Timeout:** 1800 seconds (30 minutes)
+- **Parameters / Command:** Positional arguments `[input_s3_uri, output_s3_uri]`
+- **Input:** `s3://pii-data-pipeline-input-<env>/{ticket}/purchase_data.csv`
+- **Output:** `s3://pii-data-pipeline-input-<env>/{ticket}/classified.csv`
 
 #### Module: `PIICalculator`
-- **Runtime:** AWS Lambda (Python 3.12)
-- **Input:** Classified CSV transactions
-- **Output:** `s3://pii-data-pipeline-output-<env>/results/{ticketId}/output.json`
-- **Memory/Timeout:** 512MB, 30 seconds
+- **Runtime:** AWS Lambda (`python3.12`, `arm64`)
+- **Handler:** `piicalculator.lambda_handler.handler`
+- **Memory / Timeout:** 256 MB, 300 seconds
+- **Deployment Artifact:** `s3://pii-data-pipeline-input-<env>/lambdas/pii-calculator.zip`
+- **Input:** `s3://pii-data-pipeline-input-<env>/{ticket}/classified.csv`
+- **Output:** `s3://pii-data-pipeline-output-<env>/{ticket}/pii-report.json`
 
 ---
 
 ### 6. S3 Storage Architecture
 
-#### Input & Pipeline Bucket (`pii-data-pipeline-input-<env>`)
-- **Key Prefixes:**
-  - `/uploads/{ticketId}/input.pdf`: Raw uploaded statements (1MB–15MB).
-  - `/pipeline/{ticketId}/*`: Intermediate CSV and JSON artifacts passed between pipeline stages.
-- **Lifecycle Policy:** Automatically delete all objects after 1 day (or immediate cleanup post-execution).
+#### Input & Intermediate Bucket (`pii-data-pipeline-input-<env>`)
+- **Key Prefixes & Files:**
+  - `/{ticketId}/uploads/`: Uploaded statements (PDF format, 1MB–15MB) and extracted individual CSVs.
+  - `/{ticketId}/purchase_data.csv`: Consolidated transaction CSV output from `merge`.
+  - `/{ticketId}/classified.csv`: CPI-categorized transaction CSV output from `inflation-classifier`.
+  - `/lambdas/*.zip`: Lambda deployment packages (`normalizer.zip`, `merge.zip`, `pii-calculator.zip`).
+- **Security:** Server-side encryption with AES256, public access completely blocked, `BucketOwnerEnforced`.
+- **Lifecycle Policy:** Automatically delete objects under prefix `input/` after 2 days (configurable via `input_retention_days`).
 
 #### Results Bucket (`pii-data-pipeline-output-<env>`)
-- **Key Prefix:** `/results/{ticketId}/output.json`
+- **Key Prefix:** `/{ticketId}/pii-report.json`
+- **Security:** Server-side encryption with AES256, public access completely blocked, `BucketOwnerEnforced`.
+- **Lifecycle Policy:** Automatically delete results under prefix `output/` after 14 days (configurable via `output_retention_days`).
 - **Payload Schema:**
   
   ```json
   {
-    "ticketId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "status": "COMPLETED",
-    "generatedAt": "2026-09-13T17:35:00Z",
+    "ticket": "123456789",
+    "job_status": "COMPLETED",
+    "generatedAt": "2026-09-28T15:00:00Z",
     "metrics": {
       "personalInflationRate12M": 0.047,
       "personalInflationRate6M": 0.032,
@@ -246,7 +351,6 @@ Two paths, one row:
     }
   }
   ```
-- **Lifecycle Policy:** Automatically expire and delete result artifacts after 30 days.
 
 ---
 
@@ -254,33 +358,43 @@ Two paths, one row:
 
 ```text
 1. User Initiates Upload:
-   • Frontend issues POST /submit with JWT in Authorization header.
-   • API Gateway validates JWT and creates DynamoDB record with status="PENDING".
-   • Returns { ticketId, uploadUrl, estimatedSeconds: 45 }.
+   • Frontend issues POST /spending-history.
+   • API Gateway / backend mints unique numeric ticket (e.g. 123456789), computes secret token,
+     stores the hashed secret in DynamoDB (job_status="PENDING").
+   • Returns { ticket, secret, uploadUrl, job_status: "PENDING", estimatedSeconds: 45 }.
 
 2. Direct S3 Upload:
-   • Frontend performs HTTP PUT of the PDF (1MB–15MB) directly to S3 via presigned uploadUrl.
+   • Frontend performs HTTP PUT of PDF statement(s) directly to S3 (.../{ticket}/uploads/) via presigned uploadUrl.
    • Upload completes without traversing intermediate compute or API payload limits.
 
-3. Pipeline Execution:
-   • Step Functions starts execution with executionName = ticketId.
-   • pdf2csv Lambda extracts tabular data from PDF to CSV.
-   • merge & anonymize Lambdas normalize and sanitize data.
-   • inflation-classifier infers expense categories.
-   • PIICalculator computes index values and generates output.json in S3 results bucket.
+3. UploadWatcher:
+    * When the count of files in S3 matches what was expected, sets job_status="processing"
+    and starts Pipeline execution.
+    
+4. Pipeline Execution (Step Functions):
+   • Step Functions starts execution with payload:
+       { "ticket": "123456789", "uploads": "s3://.../123456789/uploads",
+         "inputCsv": "s3://.../123456789/purchase_data.csv",
+         "classifiedCsv": "s3://.../123456789/classified.csv",
+         "piiReportJson": "s3://.../123456789/pii-report.json" }
+   • [1] Normalize Stage: Normalizer Lambda (pdf2csv) converts PDF statements to individual CSVs in uploads.
+   • [2] Merge Stage: Merge Lambda consolidates CSVs into purchase_data.csv.
+   • [3] Classify Stage: Step Functions submits synchronous AWS Batch job on Fargate ARM64.
+         Container classifies transaction rows into 8 CPI categories and outputs classified.csv.
+   • [4] CalculatePII Stage: PIICalculator Lambda calculates inflation index rates & category weights,
+         writing pii-report.json to the S3 results bucket.
 
-4. Status Tracking:
-   • Step Functions writes stage updates directly to DynamoDB (CONVERTING_PDF -> CLASSIFYING -> CALCULATING -> COMPLETED).
-   • Frontend polls GET /status?ticketId={ticketId} every 5 seconds.
-   • API Gateway reads directly from DynamoDB via GetItem (sub-10ms response, no Lambda invocation).
+5. Status Tracking:
+   • Frontend polls GET /pii-report-status every 5 seconds using Authorization: Bearer <ticket>.<secret>.
+   • Custom Lambda Authorizer verifies the hashed secret against DynamoDB.
 
-5. Result Display:
-   • Frontend detects status="COMPLETED", retrieves calculation metrics, and renders interactive inflation reports.
+6. Result Display:
+   • Frontend detects job_status="COMPLETED", requests GET /pii-report, and renders interactive inflation visuals.
 
-6. Automatic Lifecycle Cleanup:
+7. Automatic Lifecycle Cleanup:
    • DynamoDB item expires automatically after 24 hours via DynamoDB TTL.
-   • Raw uploaded PDFs and intermediate pipeline files expire after 1 day via S3 Lifecycle.
-   • Final calculation results expire after 30 days via S3 Lifecycle.
+   • Raw uploaded PDFs and intermediate pipeline files expire after 2 days via S3 Lifecycle.
+   • Final calculation results expire after 14 days via S3 Lifecycle.
 ```
 
 ---
@@ -289,37 +403,39 @@ Two paths, one row:
 
 ```text
 1. Processing Failure:
-   • An invalid PDF format, corrupted transaction line, or execution timeout occurs during a pipeline stage.
-   • Step Functions retry attempts are exhausted.
+   • An invalid PDF format, corrupted transaction line, container failure, or execution timeout occurs.
+   • Step Functions automated retry policies kick in:
+       - Lambda stages: Up to 3 retries with 2-second initial interval and 2.0 backoff multiplier.
+       - AWS Batch stage: Up to 2 retries with 30-second initial interval and 2.0 backoff multiplier.
 
-2. Automated Error Handling:
-   • Step Functions Catch block intercepts the error.
-   • Step Functions executes direct DynamoDB UpdateItem:
-       status = "FAILED"
-       errorMessage = "Failed to extract tabular data from uploaded PDF"
+2. State Machine Failure:
+   • If retries are exhausted, Step Functions marks the execution as FAILED.
+   • Complete error diagnostics and step details are logged to CloudWatch Logs:
+     /aws/vendedlogs/states/<app_name>-data-pipeline-<env>.
 
 3. Client Notification:
-   • On the next polling cycle (GET /status?ticketId={ticketId}), API Gateway returns status="FAILED" and the error message.
-   • Frontend presents user-friendly error diagnostics and prompt to re-upload.
+   • On subsequent polling of GET /pii-report-status, job_status returns FAILED.
+   • Frontend presents user-friendly error diagnostics and prompts the user to re-upload.
 ```
 
 ---
 
 ## Authentication & Security
 
-- **Token Validation:** API Gateway JWT Authorizer validates token signatures against the OIDC Provider's public JWKS endpoint on every request.
+- **Custom Bearer Token Authorizer:** API Gateway custom Lambda authorizer (`BearerAuth`) validates tokens in
+`<ticket>.<secret>` format against the cryptographic hash stored in DynamoDB for that ticket.
 - **S3 Presigned URLs:**
-  - Restricted to specific key path (`uploads/{ticketId}/input.pdf`).
+  - Restricted to specific key path (`{ticketId}/uploads/`).
   - Short expiration window (15 minutes).
   - Restricts HTTP verb strictly to `PUT`.
-- **Identity Isolation:** The `ticketId` and `userId` mapping in DynamoDB ensures users can only query status for tickets associated with their identity.
+- **Identity & Job Isolation:** Every user session receives an isolated numeric ticket and secret token. Pipeline processing and S3 paths are compartmentalized per ticket prefix (`/{ticketId}/`).
 - **Serverless IAM Principles:**
-  - API Gateway has strict `dynamodb:GetItem` permission limited to the status table.
-  - Step Functions state machine execution role is restricted to invoking designated Lambda functions and performing `dynamodb:UpdateItem` on the status table.
-  - Compute workers have least-privilege read/write access limited to pipeline bucket prefixes.
+  - Step Functions state machine execution role is restricted to invoking designated pipeline Lambdas (`normalizer`, `merge`, `pii_calculator`) and submitting jobs to the specific AWS Batch queue and job definition.
+  - AWS Batch execution and job roles have least-privilege access restricted to S3 bucket prefixes, ECR image pull, and CloudWatch log groups.
+  - Batch security group strictly restricts outbound egress to HTTPS (port 443), DNS (port 53), and NTP (port 123).
 - **Encryption:**
   - All external and inter-service communications enforce TLS 1.2+.
-  - S3 buckets enforce server-side encryption (`AES256` / `aws:kms`).
+  - S3 buckets enforce server-side encryption (`AES256`).
   - DynamoDB uses AWS-managed KMS encryption at rest.
 
 ---
@@ -327,15 +443,17 @@ Two paths, one row:
 ## Monitoring, Logging & Observability
 
 - **CloudWatch Metrics:**
-  - API Gateway 4xx/5xx error rates, latency (p95, p99), and integration latency.
+  - API Gateway 4xx/5xx error rates, request latency, and authorizer duration.
   - Step Functions executions started, succeeded, failed, and execution duration.
   - Lambda duration, invocations, throttles, and error rates.
-  - DynamoDB consumed read/write units and throttled requests.
-- **Structured Logging & Tracing:**
-  - CloudWatch Logs enabled with 14-day retention across all Lambda functions and Step Functions execution logs.
-  - AWS X-Ray tracing enabled across API Gateway and Step Functions for distributed transaction tracing.
+  - AWS Batch runnable time, execution time, and container exit codes.
+  - DynamoDB consumed capacity and throttled requests.
+- **Structured Logging:**
+  - Step Functions execution logs logged to `/aws/vendedlogs/states/${app_name}-data-pipeline-${environment}` with log level `ALL`, `include_execution_data = true`, and 3-day retention.
+  - Lambda functions log to `/aws/lambda/${app_name}-<function>-${environment}` with 3-day retention.
+  - AWS Batch container logs streamed to `/aws/batch/${app_name}-${environment}`.
 - **CloudWatch Alarms:**
-  - Step Functions execution failure alarm (triggers alert on pipeline crash).
+  - Step Functions execution failure alarm (alerts on pipeline failures).
   - API Gateway 5xx rate > 1% over 5-minute window.
 
 ---
@@ -346,23 +464,29 @@ The architecture utilizes a pure pay-per-request serverless model to eliminate i
 
 | Component | Cost Model | Expected Monthly Impact (1–1,000 active users) |
 | :--- | :--- | :--- |
-| **API Gateway** | HTTP API ($1.00 / million requests) | < $2.00 |
+| **API Gateway** | REST API ($3.50 / million requests) | < $2.00 |
 | **Step Functions** | Standard Workflows ($0.025 / 1,000 transitions) | < $1.50 |
-| **AWS Lambda** | Compute per millisecond ($0.0000166667 / GB-s) | < $3.00 |
-| **DynamoDB** | On-Demand (PAY_PER_REQUEST, reads/writes + TTL) | < $1.00 |
-| **S3 Storage & Transfer**| Standard Storage + Lifecycle transitions | < $2.00 |
-| **Total Estimated Cost**| **100% Usage-Proportional (Zero Idle Compute)** | **~$5.00 – $15.00 / month** |
+| **AWS Lambda** | Compute per millisecond on ARM64 Graviton ($0.0000133334 / GB-s) | < $3.00 |
+| **AWS Batch** | Managed Fargate Spot ARM64 (70% savings over on-demand Fargate) | < $5.00 |
+| **DynamoDB** | On-Demand (`PAY_PER_REQUEST`, reads/writes + TTL) | < $1.00 |
+| **S3 Storage & Transfer**| Standard Storage + 2-day input / 14-day output lifecycles | < $2.00 |
+| **Total Estimated Cost**| **100% Usage-Proportional (Zero Idle Compute)** | **~$10.00 – $15.00 / month** |
 
 ---
 
 ## Deployment Checklist
 
-- [ ] Configure Generic OIDC / OAuth2 JWT Authorizer in API Gateway with Issuer and Audience.
-- [ ] Create DynamoDB state table `pii-job-status-<env>` with `PAY_PER_REQUEST` billing and enable TTL on attribute `ttl`.
-- [ ] Create S3 buckets (`pii-data-pipeline-input-<env>`, `pii-data-pipeline-output-<env>`) with lifecycle policies (1-day input expiration, 30-day output expiration).
-- [ ] Deploy Lambda functions (`pdf2csv`, `merge`, `anonymize`, `PIICalculator`).
-- [ ] Build and publish ML classification image (`inflation-classifier`) to Amazon ECR.
-- [ ] Deploy Step Functions state machine with stage transitions, DynamoDB update tasks, and catch/retry blocks.
-- [ ] Configure API Gateway routes (`POST /submit`, `GET /status`) with direct integrations.
-- [ ] Configure CloudWatch alarms for Step Functions failures and API Gateway 5xx error rates.
-- [ ] Perform end-to-end integration validation (PDF upload ➔ S3 presigned PUT ➔ Step Functions execution ➔ DynamoDB direct read ➔ results rendering).
+- [ ] Deploy DynamoDB state table `pii-job-status-<env>` with `PAY_PER_REQUEST` billing and enable TTL on attribute `expires_at`.
+- [ ] Create S3 buckets (`pii-data-pipeline-input-<env>`, `pii-data-pipeline-output-<env>`) with 
+lifecycle policies (2-day input expiration, 14-day output expiration).
+- [ ] Build and upload Lambda deployment packages (`normalizer.zip`, `merge.zip`, `pii-calculator.zip`) to
+`s3://pii-data-pipeline-input-<env>/lambdas/`.
+- [ ] Deploy Lambda functions (`normalizer`, `merge`, `pii_calculator`, and custom authorizer).
+- [ ] Build and push ML classification image (`inflation-classifier`) to Amazon ECR.
+- [ ] Provision AWS Batch compute environment (Fargate Spot ARM64), job queue, and job definition.
+- [ ] Deploy Step Functions State Machine orchestrating `Normalize` ➔ `Merge` ➔ `Classify` ➔ `CalculatePII`.
+- [ ] Configure API Gateway REST API, `BearerAuth` Lambda Authorizer, DynamoDB, and endpoint routes.
+- [ ] Configure CloudWatch log groups (3-day retention) and failure alarms.
+- [ ] Perform end-to-end integration validation (PDF upload ➔ S3 presigned PUT ➔ Step Functions execution ➔
+- [ ] Bucket notification rule for ObjectCreated under uploads/
+Batch classification ➔ PII calculation ➔ Results verification).

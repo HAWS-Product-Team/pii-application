@@ -74,7 +74,7 @@ stderr and exits with a non-zero exit code (e.g., 1) rather than dumping an unha
    - `Item`:
      - `ticket_id`: `{"S": ticket_id}` (partition key)
      - `secret_hash`: `{"S": secret_hash}`
-     - `status`: `{"S": "issued"}`
+     - `job_status`: `{"S": "issued"}`
      - `expires_at`: `{"N": str(int(now + ttl_seconds))}` (epoch seconds as DynamoDB number attribute)
      - `created_at`: `{"S": now_iso_utc}` (ISO 8601 UTC timestamp)
    - `ConditionExpression`: `"attribute_not_exists(ticket_id)"` so a ULID
@@ -139,7 +139,7 @@ Assert that the `put_item` call includes:
 - `Item`:
   - `ticket_id`: `{"S": ticket_id}` matching the returned `ticket_id`.
   - `secret_hash`: `{"S": secret_hash}` matching SHA-256 of the raw secret.
-  - `status`: `{"S": "issued"}`.
+  - `job_status`: `{"S": "issued"}`.
   - `expires_at`: `{"N": ...}` represented as epoch seconds string.
   - `created_at`: `{"S": ...}` represented as an ISO 8601 UTC timestamp string.
 - `ConditionExpression`: `"attribute_not_exists(ticket_id)"`.

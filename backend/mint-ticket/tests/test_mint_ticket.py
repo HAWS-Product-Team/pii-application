@@ -64,7 +64,7 @@ def test_mint_ticket_success_structure_and_persistence() -> None:
 
     item = call["Item"]
     assert item["ticket_id"] == {"S": ticket_id}
-    assert item["status"] == {"S": "issued"}
+    assert item["job_status"] == {"S": "issued"}
     assert "expires_at" in item
     assert "N" in item["expires_at"]
     assert "created_at" in item
