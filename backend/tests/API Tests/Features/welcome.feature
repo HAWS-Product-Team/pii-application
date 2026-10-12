@@ -9,12 +9,7 @@ Feature: Invoices API on AWS API Gateway
     Then status 200
     And match response ==   
     """
-    {
-  "links": [
-    {
-      "href": "/spending-history",
-      "rel": "upload"
-    }
-  ]
-}
-"""
+      {"links":[{"href":"/spending-history","rel":"upload"}],
+        "messages":["Welcome to My Inflation Index. Here you can......"]
+      }
+    """
