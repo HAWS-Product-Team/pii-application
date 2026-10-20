@@ -35,7 +35,6 @@ find "$BUILD_DIR" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || t
 find "$BUILD_DIR" -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
 find "$BUILD_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
 find "$BUILD_DIR" -type f -name "*.pyo" -delete 2>/dev/null || true
-find "$BUILD_DIR" -type d -name "*.dist-info" -exec rm -rf {} + 2>/dev/null || true
 
 # Strip .so files if strip command exists
 if command -v strip >/dev/null 2>&1; then
