@@ -23,12 +23,6 @@ export default function Homepage() {
                 Track Your Inflation,<br /> Not Theirs
             </h1>
 
-            <p className="max-w-2xl mx-auto py-10">
-                Official inflation rates don't reflect your life. Build a personal
-                inflation index based on what you actually buy, and see how prices
-                really affect you. <Link to={"/"} className="text-[#33B4A8]">Learn more</Link>
-            </p>
-
             <div className="max-w-2xl mx-auto px-4">
                 {welcomeMessage && (
                     <p className="py-3" role="status">
