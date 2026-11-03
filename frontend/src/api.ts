@@ -6,7 +6,15 @@ interface ApiLink {
 }
 
 interface RootResponse {
+    messages: string[];
     links: ApiLink[];
+}
+
+export async function getWelcomeMessage(): Promise<string> {
+    const response = await fetch(API_ROOT);
+    const root = await readJson<RootResponse>(response);
+
+    return root.messages?.[0] ?? "Welcome to My Inflation Index.";
 }
 
 export interface UploadDescriptor {
