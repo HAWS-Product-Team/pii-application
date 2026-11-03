@@ -1,11 +1,35 @@
 import base64
 import hashlib
+import hmac
 import secrets
 from datetime import UTC, datetime
 from typing import Any
 
 import boto3
 import ulid
+
+
+def verify_secret(secret: str, stored_secret_hash: str) -> bool:
+    """
+    Verify a presented base64url secret against a stored SHA-256 secret_hash.
+
+    Decodes the base64url secret back to raw bytes (restoring padding as necessary),
+    computes the SHA-256 hex digest of the raw bytes, and compares with
+    the stored_secret_hash using constant-time comparison (hmac.compare_digest).
+    """
+    if not isinstance(secret, str) or not isinstance(stored_secret_hash, str):
+        return False
+    if not secret or not stored_secret_hash:
+        return False
+
+    try:
+        padding = b"=" * (-len(secret) % 4)
+        raw_secret_bytes = base64.urlsafe_b64decode(secret.encode("ascii") + padding)
+    except Exception:  # noqa: BLE001
+        return False
+
+    computed_hash = hashlib.sha256(raw_secret_bytes).hexdigest()
+    return hmac.compare_digest(computed_hash, stored_secret_hash)
 
 
 def mint_ticket(

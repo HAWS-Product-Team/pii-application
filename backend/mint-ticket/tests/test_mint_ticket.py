@@ -8,7 +8,7 @@ import pytest
 import ulid
 from botocore.exceptions import ClientError
 
-from mint_ticket import mint_ticket
+from mint_ticket import mint_ticket, verify_secret
 
 
 class FakeDynamoDBClient:
@@ -165,3 +165,25 @@ def test_mint_ticket_default_dynamodb_client() -> None:
         mock_boto_client.assert_called_once_with("dynamodb")
         mock_instance.put_item.assert_called_once()
         assert res["ticket_id"] == mock_instance.put_item.call_args.kwargs["Item"]["ticket_id"]["S"]
+
+
+def test_verify_secret_valid_and_invalid() -> None:
+    client = FakeDynamoDBClient()
+    result = mint_ticket(table_name="verify-test-table", dynamodb_client=client)
+    secret = result["secret"]
+    item = client.calls[0]["Item"]
+    stored_hash = item["secret_hash"]["S"]
+
+    # Valid secret matches
+    assert verify_secret(secret, stored_hash) is True
+
+    # Tampered secret fails
+    tampered = secret[:-1] + ("A" if secret[-1] != "A" else "B")
+    assert verify_secret(tampered, stored_hash) is False
+
+    # Empty or wrong inputs fail safely
+    assert verify_secret("", stored_hash) is False
+    assert verify_secret(secret, "") is False
+    assert verify_secret(None, stored_hash) is False  # type: ignore[arg-type]
+    assert verify_secret(secret, None) is False  # type: ignore[arg-type]
+    assert verify_secret("!!!not-base64url!!!", stored_hash) is False
