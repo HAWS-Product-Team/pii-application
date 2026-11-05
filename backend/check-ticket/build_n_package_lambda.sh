@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 BUILD_DIR="$SCRIPT_DIR/build_lambda"
-PACKAGE_NAME="check_ticket.zip"
+PACKAGE_NAME="check-ticket.zip"
 HANDLER="check_ticket.lambda_handler.handler"
 RUNTIME="python3.12"
 TARGET_ARCH="arm64"
@@ -41,7 +41,7 @@ if command -v strip >/dev/null 2>&1; then
   find "$BUILD_DIR" -type f -name "*.so" -exec strip {} + 2>/dev/null || true
 fi
 
-# 4. Zip to check_ticket.zip
+# 4. Zip to check-ticket.zip
 echo "Creating deployment ZIP..."
 (cd "$BUILD_DIR" && zip -q -r "$SCRIPT_DIR/$PACKAGE_NAME" .)
 
